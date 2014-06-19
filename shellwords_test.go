@@ -17,6 +17,7 @@ var testcases = []struct {
 	{"var --bar=`baz`", []string{`var`, "--bar=`baz`"}},
 	{`var "--bar=\"baz'"`, []string{`var`, `--bar="baz'`}},
 	{`var "--bar=\'baz\'"`, []string{`var`, `--bar='baz'`}},
+	{`var --bar='\'`, []string{`var`, `--bar=\`}},
 	{`var "--bar baz"`, []string{`var`, `--bar baz`}},
 	{`var --"bar baz"`, []string{`var`, `--bar baz`}},
 	{`var  --"bar baz"`, []string{`var`, `--bar baz`}},
