@@ -1,6 +1,6 @@
 # go-shellwords
 
-Parse line as shell words
+Parse line as shell words.
 
 ## Usage
 
