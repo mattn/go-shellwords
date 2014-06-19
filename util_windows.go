@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 func shellRun(line string) (string, error) {
@@ -12,5 +13,5 @@ func shellRun(line string) (string, error) {
 	if err != nil {
 		return "", errors.New(err.Error() + ":" + string(b))
 	}
-	return string(b), nil
+	return strings.TrimSpace(string(b)), nil
 }
