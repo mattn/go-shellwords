@@ -20,7 +20,7 @@ func Parse(line string) ([]string, error) {
 
 	buf := ""
 
-	var escaped, double_quoted, single_quoted bool
+	var escaped, doubleQuoted, singleQuoted bool
 
 	for _, r := range line {
 		if escaped {
@@ -30,7 +30,7 @@ func Parse(line string) ([]string, error) {
 		}
 
 		if r == '\\' {
-			if single_quoted {
+			if singleQuoted {
 				buf += string(r)
 			} else {
 				escaped = true
@@ -39,7 +39,7 @@ func Parse(line string) ([]string, error) {
 		}
 
 		if isSpace(r) {
-			if single_quoted || double_quoted {
+			if singleQuoted || doubleQuoted {
 				buf += string(r)
 			} else if buf != "" {
 				args = append(args, buf)
@@ -49,20 +49,20 @@ func Parse(line string) ([]string, error) {
 		}
 
 		if r == '"' {
-			if single_quoted {
+			if singleQuoted {
 				buf += string(r)
 			} else {
-				double_quoted = !double_quoted
+				doubleQuoted = !doubleQuoted
 			}
 			continue
 		}
 
 		if r == '\'' {
-			if double_quoted {
+			if doubleQuoted {
 				buf += string(r)
 				continue
 			} else {
-				single_quoted = !single_quoted
+				singleQuoted = !singleQuoted
 			}
 			continue
 		}
@@ -74,7 +74,7 @@ func Parse(line string) ([]string, error) {
 		args = append(args, buf)
 	}
 
-	if escaped || single_quoted || double_quoted {
+	if escaped || singleQuoted || doubleQuoted {
 		return nil, errors.New("invalid command line string")
 	}
 
