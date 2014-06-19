@@ -1,5 +1,7 @@
 # go-shellwords
 
+[![Build Status](https://travis-ci.org/mattn/go-shellwords.svg?branch=master)](https://travis-ci.org/mattn/go-shellwords)
+
 Parse line as shell words.
 
 ## Usage
