@@ -81,6 +81,7 @@ func TestNoEnv(t *testing.T) {
 
 func TestDupEnv(t *testing.T) {
 	os.Setenv("FOO", "bar")
+	os.Setenv("FOO_BAR", "baz")
 
 	parser := NewParser()
 	parser.ParseEnv = true
@@ -89,6 +90,15 @@ func TestDupEnv(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	expected := []string{"echo", "$bar$"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %v, but %v:", expected, args)
+	}
+
+	args, err = parser.Parse("echo $${FOO_BAR}$")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	expected = []string{"echo", "$baz$"}
 	if !reflect.DeepEqual(args, expected) {
 		t.Fatalf("Expected %v, but %v:", expected, args)
 	}
