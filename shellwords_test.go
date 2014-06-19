@@ -67,6 +67,15 @@ func TestBacktick(t *testing.T) {
 	}
 }
 
+func TestBacktickError(t *testing.T) {
+	parser := NewParser()
+	parser.ParseBacktick = true
+	_, err := parser.Parse("echo `go Version`")
+	if err == nil {
+		t.Fatalf("Should be an error")
+	}
+}
+
 func TestEnv(t *testing.T) {
 	os.Setenv("FOO", "bar")
 
