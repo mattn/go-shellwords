@@ -41,7 +41,7 @@ func Parse(line string) ([]string, error) {
 		if isSpace(r) {
 			if single_quoted || double_quoted {
 				buf += string(r)
-			} else {
+			} else if buf != "" {
 				args = append(args, buf)
 				buf = ""
 			}

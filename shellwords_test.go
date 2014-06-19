@@ -16,6 +16,7 @@ var testcases = []struct {
 	{`var "--bar=\"baz'"`, []string{`var`, `--bar="baz'`}},
 	{`var "--bar baz"`, []string{`var`, `--bar baz`}},
 	{`var --"bar baz"`, []string{`var`, `--bar baz`}},
+	{`var  --"bar baz"`, []string{`var`, `--bar baz`}},
 }
 
 func TestSimple(t *testing.T) {
