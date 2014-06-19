@@ -6,16 +6,16 @@ import (
 )
 
 var testcases = []struct {
-	line string
+	line     string
 	expected []string
-} {
-	{ `var --bar=baz`, []string{`var`, `--bar=baz`} },
-	{ `var --bar="baz"`, []string{`var`, `--bar=baz`} },
-	{ `var "--bar=baz"`, []string{`var`, `--bar=baz`} },
-	{ `var "--bar='baz'"`, []string{`var`, `--bar='baz'`} },
-	{ `var "--bar=\"baz'"`, []string{`var`, `--bar="baz'`} },
-	{ `var "--bar baz"`, []string{`var`, `--bar baz`} },
-	{ `var --"bar baz"`, []string{`var`, `--bar baz`} },
+}{
+	{`var --bar=baz`, []string{`var`, `--bar=baz`}},
+	{`var --bar="baz"`, []string{`var`, `--bar=baz`}},
+	{`var "--bar=baz"`, []string{`var`, `--bar=baz`}},
+	{`var "--bar='baz'"`, []string{`var`, `--bar='baz'`}},
+	{`var "--bar=\"baz'"`, []string{`var`, `--bar="baz'`}},
+	{`var "--bar baz"`, []string{`var`, `--bar baz`}},
+	{`var --"bar baz"`, []string{`var`, `--bar baz`}},
 }
 
 func TestSimple(t *testing.T) {
