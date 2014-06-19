@@ -21,7 +21,7 @@ func replaceEnv(s string) string {
 	return envRe.ReplaceAllStringFunc(s, func(s string) string {
 		s = s[1:]
 		if s[0] == '{' {
-			s = s[1:len(s)-1]
+			s = s[1 : len(s)-1]
 		}
 		return os.Getenv(s)
 	})

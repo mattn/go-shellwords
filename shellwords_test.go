@@ -16,6 +16,7 @@ var testcases = []struct {
 	{`var "--bar='baz'"`, []string{`var`, `--bar='baz'`}},
 	{"var --bar=`baz`", []string{`var`, "--bar=`baz`"}},
 	{`var "--bar=\"baz'"`, []string{`var`, `--bar="baz'`}},
+	{`var "--bar=\'baz\'"`, []string{`var`, `--bar='baz'`}},
 	{`var "--bar baz"`, []string{`var`, `--bar baz`}},
 	{`var --"bar baz"`, []string{`var`, `--bar baz`}},
 	{`var  --"bar baz"`, []string{`var`, `--bar baz`}},
@@ -128,4 +129,3 @@ func TestDupEnv(t *testing.T) {
 		t.Fatalf("Expected %v, but %v:", expected, args)
 	}
 }
-

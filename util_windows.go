@@ -14,4 +14,3 @@ func shellRun(line string) (string, error) {
 	}
 	return string(b), nil
 }
-
