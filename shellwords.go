@@ -76,17 +76,21 @@ func (p *Parser) Parse(line string) ([]string, error) {
 
 		switch r {
 		case '`':
-			if p.ParseBacktick && !singleQuoted && !doubleQuoted {
-				if backQuote {
-					out, err := shellRun(backtick)
-					if err != nil {
-						return nil, err
+			if !singleQuoted && !doubleQuoted {
+				if p.ParseBacktick {
+					if backQuote {
+						out, err := shellRun(backtick)
+						if err != nil {
+							return nil, err
+						}
+						buf = out
 					}
-					buf = out
+					backtick = ""
+					backQuote = !backQuote
+					continue
 				}
 				backtick = ""
 				backQuote = !backQuote
-				continue
 			}
 		case '"':
 			if !singleQuoted {

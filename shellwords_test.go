@@ -33,6 +33,22 @@ func TestSimple(t *testing.T) {
 	}
 }
 
+func TestError(t *testing.T) {
+	_, err := Parse("foo '")
+	if err == nil {
+		t.Fatalf("Should be an error")
+	}
+	_, err = Parse(`foo "`)
+	if err == nil {
+		t.Fatalf("Should be an error")
+	}
+
+	_, err = Parse("foo `")
+	if err == nil {
+		t.Fatalf("Should be an error")
+	}
+}
+
 func TestBacktick(t *testing.T) {
 	goversion, err := shellRun("go version")
 	if err != nil {
