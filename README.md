@@ -27,6 +27,10 @@ args, err := p.Parse("./foo `echo $SHELL`")
 // args should be ["./foo", "/bin/bash"]
 ```
 
+# Thanks
+
+This is based on cpan module [Parse::CommandLine](https://metacpan.org/pod/Parse::CommandLine).
+
 # License
 
 under the MIT License: http://mattn.mit-license.org/2014
