@@ -40,7 +40,10 @@ func shellRun(line string) (string, error) {
 	}
 	shell := os.Getenv("SHELL")
 	b, err := exec.Command(shell, "-c", line).Output()
-	return string(b), errors.New(err.Error() + ":" + string(b))
+	if err != nil {
+		return "", errors.New(err.Error() + ":" + string(b))
+	}
+	return string(b), nil
 }
 
 type Parser struct {
