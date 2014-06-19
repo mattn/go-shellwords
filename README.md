@@ -7,9 +7,24 @@ Parse line as shell words.
 
 ## Usage
 
-```
+```go
 args, err := shellwords.Parse("./foo --bar=baz")
 // args should be ["./foo", "--bar=baz"]
+```
+
+```go
+os.Setenv("FOO", "bar")
+p := shellwords.NewParser()
+p.ParseEnv = true
+args, err := p.Parse("./foo $FOO")
+// args should be ["./foo", "bar"]
+```
+
+```go
+p := shellwords.NewParser()
+p.ParseBacktick = true
+args, err := p.Parse("./foo `echo SHELL`")
+// args should be ["./foo", "/bin/bash"]
 ```
 
 # License
