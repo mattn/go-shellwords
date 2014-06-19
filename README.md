@@ -23,7 +23,7 @@ args, err := p.Parse("./foo $FOO")
 ```go
 p := shellwords.NewParser()
 p.ParseBacktick = true
-args, err := p.Parse("./foo `echo SHELL`")
+args, err := p.Parse("./foo `echo $SHELL`")
 // args should be ["./foo", "/bin/bash"]
 ```
 
