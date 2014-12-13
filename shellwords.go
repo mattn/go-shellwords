@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+var (
+	ParseEnv      bool = false
+	ParseBacktick bool = false
+)
+
 var envRe = regexp.MustCompile(`\$({[a-zA-Z0-9_]+}|[a-zA-Z0-9_]+)`)
 
 func isSpace(r rune) bool {
@@ -33,7 +38,7 @@ type Parser struct {
 }
 
 func NewParser() *Parser {
-	return new(Parser)
+	return &Parser{ParseEnv, ParseBacktick}
 }
 
 func (p *Parser) Parse(line string) ([]string, error) {
