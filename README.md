@@ -27,6 +27,13 @@ args, err := p.Parse("./foo `echo $SHELL`")
 // args should be ["./foo", "/bin/bash"]
 ```
 
+```go
+shellwords.ParseBacktick = true
+p := shellwords.NewParser()
+args, err := p.Parse("./foo `echo $SHELL`")
+// args should be ["./foo", "/bin/bash"]
+```
+
 # Thanks
 
 This is based on cpan module [Parse::CommandLine](https://metacpan.org/pod/Parse::CommandLine).
