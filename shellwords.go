@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"regexp"
-	"strings"
 )
 
 var (
@@ -42,8 +41,6 @@ func NewParser() *Parser {
 }
 
 func (p *Parser) Parse(line string) ([]string, error) {
-	line = strings.TrimSpace(line)
-
 	args := []string{}
 	buf := ""
 	var escaped, doubleQuoted, singleQuoted, backQuote bool

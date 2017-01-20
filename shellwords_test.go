@@ -27,7 +27,7 @@ func TestSimple(t *testing.T) {
 	for _, testcase := range testcases {
 		args, err := Parse(testcase.line)
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(args, testcase.expected) {
 			t.Fatalf("Expected %v, but %v:", testcase.expected, args)
@@ -38,30 +38,46 @@ func TestSimple(t *testing.T) {
 func TestError(t *testing.T) {
 	_, err := Parse("foo '")
 	if err == nil {
-		t.Fatalf("Should be an error")
+		t.Fatal("Should be an error")
 	}
 	_, err = Parse(`foo "`)
 	if err == nil {
-		t.Fatalf("Should be an error")
+		t.Fatal("Should be an error")
 	}
 
 	_, err = Parse("foo `")
 	if err == nil {
-		t.Fatalf("Should be an error")
+		t.Fatal("Should be an error")
+	}
+}
+
+func TestLastSpace(t *testing.T) {
+	args, err := Parse("foo bar\\  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(args) != 2 {
+		t.Fatal("Should have two elements")
+	}
+	if args[0] != "foo" {
+		t.Fatal("1st element should be `foo`")
+	}
+	if args[1] != "bar " {
+		t.Fatal("1st element should be `bar `")
 	}
 }
 
 func TestBacktick(t *testing.T) {
 	goversion, err := shellRun("go version")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	parser := NewParser()
 	parser.ParseBacktick = true
 	args, err := parser.Parse("echo `go version`")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	expected := []string{"echo", goversion}
 	if !reflect.DeepEqual(args, expected) {
@@ -74,7 +90,7 @@ func TestBacktickError(t *testing.T) {
 	parser.ParseBacktick = true
 	_, err := parser.Parse("echo `go Version`")
 	if err == nil {
-		t.Fatalf("Should be an error")
+		t.Fatal("Should be an error")
 	}
 }
 
@@ -85,7 +101,7 @@ func TestEnv(t *testing.T) {
 	parser.ParseEnv = true
 	args, err := parser.Parse("echo $FOO")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	expected := []string{"echo", "bar"}
 	if !reflect.DeepEqual(args, expected) {
@@ -98,7 +114,7 @@ func TestNoEnv(t *testing.T) {
 	parser.ParseEnv = true
 	args, err := parser.Parse("echo $BAR")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	expected := []string{"echo", ""}
 	if !reflect.DeepEqual(args, expected) {
@@ -114,7 +130,7 @@ func TestDupEnv(t *testing.T) {
 	parser.ParseEnv = true
 	args, err := parser.Parse("echo $$FOO$")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	expected := []string{"echo", "$bar$"}
 	if !reflect.DeepEqual(args, expected) {
@@ -123,7 +139,7 @@ func TestDupEnv(t *testing.T) {
 
 	args, err = parser.Parse("echo $${FOO_BAR}$")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	expected = []string{"echo", "$baz$"}
 	if !reflect.DeepEqual(args, expected) {
