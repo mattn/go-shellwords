@@ -146,3 +146,36 @@ func TestDupEnv(t *testing.T) {
 		t.Fatalf("Expected %v, but %v:", expected, args)
 	}
 }
+
+func TestHaveMore(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+
+	line := "echo foo; seq 1 10"
+	args, err := parser.Parse(line)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	expected := []string{"echo", "foo"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %v, but %v:", expected, args)
+	}
+
+	if parser.Position == 0 {
+		t.Fatalf("Commands should be remaining")
+	}
+
+	line = string([]rune(line)[parser.Position+1:])
+	args, err = parser.Parse(line)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	expected = []string{"seq", "1", "10"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %v, but %v:", expected, args)
+	}
+
+	if parser.Position > 0 {
+		t.Fatalf("Commands should not be remaining")
+	}
+}
