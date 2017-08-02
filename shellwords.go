@@ -120,15 +120,16 @@ loop:
 		case '(':
 			if !singleQuoted && !doubleQuoted && !backQuote && !dollarQuote && len(buf) > 0 && buf == "$" {
 				dollarQuote = true
+				buf += "("
 				continue
 			}
 		case '"':
-			if !singleQuoted {
+			if !singleQuoted && !dollarQuote {
 				doubleQuoted = !doubleQuoted
 				continue
 			}
 		case '\'':
-			if !doubleQuoted {
+			if !doubleQuoted && !dollarQuote {
 				singleQuoted = !singleQuoted
 				continue
 			}
