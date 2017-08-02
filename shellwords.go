@@ -118,10 +118,14 @@ loop:
 				dollarQuote = !dollarQuote
 			}
 		case '(':
-			if !singleQuoted && !doubleQuoted && !backQuote && !dollarQuote && len(buf) > 0 && buf == "$" {
-				dollarQuote = true
-				buf += "("
-				continue
+			if !singleQuoted && !doubleQuoted && !backQuote {
+				if !dollarQuote && len(buf) > 0 && buf == "$" {
+					dollarQuote = true
+					buf += "("
+					continue
+				} else {
+					return nil, errors.New("invalid command line string")
+				}
 			}
 		case '"':
 			if !singleQuoted && !dollarQuote {
