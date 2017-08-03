@@ -92,6 +92,10 @@ func TestBacktickError(t *testing.T) {
 	if err == nil {
 		t.Fatal("Should be an error")
 	}
+	expected := "exit status 2:go: unknown subcommand \"Version\"\nRun 'go help' for usage.\n"
+	if expected != err.Error() {
+		t.Fatalf("Expected %q, but %q", expected, err.Error())
+	}
 }
 
 func TestEnv(t *testing.T) {
