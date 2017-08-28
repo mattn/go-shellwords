@@ -83,6 +83,30 @@ func TestBacktick(t *testing.T) {
 	if !reflect.DeepEqual(args, expected) {
 		t.Fatalf("Expected %#v, but %#v:", expected, args)
 	}
+
+	args, err = parser.Parse(`echo $(echo foo)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected = []string{"echo", "foo"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	parser.ParseBacktick = false
+	args, err = parser.Parse(`echo $(echo "foo")`)
+	expected = []string{"echo", `$(echo "foo")`}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+	args, err = parser.Parse("echo $(`echo1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected = []string{"echo", "$(`echo1)"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
 }
 
 func TestBacktickError(t *testing.T) {
@@ -95,6 +119,26 @@ func TestBacktickError(t *testing.T) {
 	expected := "exit status 2:go: unknown subcommand \"Version\"\nRun 'go help' for usage.\n"
 	if expected != err.Error() {
 		t.Fatalf("Expected %q, but %q", expected, err.Error())
+	}
+	_, err = parser.Parse(`echo $(echo1)`)
+	if err == nil {
+		t.Fatal("Should be an error")
+	}
+	_, err = parser.Parse(`echo $(echo1`)
+	if err == nil {
+		t.Fatal("Should be an error")
+	}
+	_, err = parser.Parse(`echo $ (echo1`)
+	if err == nil {
+		t.Fatal("Should be an error")
+	}
+	_, err = parser.Parse(`echo (echo1`)
+	if err == nil {
+		t.Fatal("Should be an error")
+	}
+	_, err = parser.Parse(`echo )echo1`)
+	if err == nil {
+		t.Fatal("Should be an error")
 	}
 }
 
