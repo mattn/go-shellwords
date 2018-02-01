@@ -227,3 +227,22 @@ func TestHaveMore(t *testing.T) {
 		t.Fatalf("Commands should not be remaining")
 	}
 }
+
+func TestHaveRedirect(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+
+	line := "ls -la 2>foo"
+	args, err := parser.Parse(line)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	expected := []string{"ls", "-la"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	if parser.Position == 0 {
+		t.Fatalf("Commands should be remaining")
+	}
+}
