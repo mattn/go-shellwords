@@ -139,7 +139,7 @@ loop:
 			}
 		case ';', '&', '|', '<', '>':
 			if !(escaped || singleQuoted || doubleQuoted || backQuote) {
-				if r == '>' {
+				if r == '>' && len(buf) > 0 {
 					if c := buf[0]; '0' <= c && c <= '9' {
 						i -= 1
 						got = false
