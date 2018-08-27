@@ -73,9 +73,16 @@ loop:
 				backtick += string(r)
 			} else if got {
 				if p.ParseEnv {
-					buf = replaceEnv(buf)
+					strs, err := (&Parser{false, false, 0}).Parse(replaceEnv(buf))
+					if err != nil {
+						return nil, err
+					}
+					for _, str := range strs {
+						args = append(args, str)
+					}
+				} else {
+					args = append(args, buf)
 				}
-				args = append(args, buf)
 				buf = ""
 				got = false
 			}
@@ -159,9 +166,16 @@ loop:
 
 	if got {
 		if p.ParseEnv {
-			buf = replaceEnv(buf)
+			strs, err := (&Parser{false, false, 0}).Parse(replaceEnv(buf))
+			if err != nil {
+				return nil, err
+			}
+			for _, str := range strs {
+				args = append(args, str)
+			}
+		} else {
+			args = append(args, buf)
 		}
-		args = append(args, buf)
 	}
 
 	if escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote {
