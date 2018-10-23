@@ -21,13 +21,17 @@ func isSpace(r rune) bool {
 	return false
 }
 
-func replaceEnv(s string) string {
+func replaceEnv(getenv func(string) string, s string) string {
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+
 	return envRe.ReplaceAllStringFunc(s, func(s string) string {
 		s = s[1:]
 		if s[0] == '{' {
 			s = s[1 : len(s)-1]
 		}
-		return os.Getenv(s)
+		return getenv(s)
 	})
 }
 
@@ -35,10 +39,18 @@ type Parser struct {
 	ParseEnv      bool
 	ParseBacktick bool
 	Position      int
+
+	// If ParseEnv is true, use this for getenv.
+	// If nil, use os.Getenv.
+	Getenv func(string) string
 }
 
 func NewParser() *Parser {
-	return &Parser{ParseEnv, ParseBacktick, 0}
+	return &Parser{
+		ParseEnv:      ParseEnv,
+		ParseBacktick: ParseBacktick,
+		Position:      0,
+	}
 }
 
 func (p *Parser) Parse(line string) ([]string, error) {
@@ -73,7 +85,7 @@ loop:
 				backtick += string(r)
 			} else if got {
 				if p.ParseEnv {
-					buf = replaceEnv(buf)
+					buf = replaceEnv(p.Getenv, buf)
 				}
 				args = append(args, buf)
 				buf = ""
@@ -159,7 +171,7 @@ loop:
 
 	if got {
 		if p.ParseEnv {
-			buf = replaceEnv(buf)
+			buf = replaceEnv(p.Getenv, buf)
 		}
 		args = append(args, buf)
 	}
