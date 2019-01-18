@@ -110,13 +110,18 @@ func TestBacktick(t *testing.T) {
 }
 
 func TestBacktickError(t *testing.T) {
+	_, err := shellRun("go build -o ./_testdata/stderr ./_testdata/stderr.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	parser := NewParser()
 	parser.ParseBacktick = true
-	_, err := parser.Parse("echo `go Version`")
+	_, err = parser.Parse("echo `./_testdata/stderr`")
 	if err == nil {
 		t.Fatal("Should be an error")
 	}
-	expected := "exit status 2:go Version: unknown command\nRun 'go help' for usage.\n"
+	expected := "exit status 2:stderr for test\n"
 	if expected != err.Error() {
 		t.Fatalf("Expected %q, but %q", expected, err.Error())
 	}
