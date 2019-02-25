@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"regexp"
+	"strings"
 )
 
 var (
@@ -131,7 +132,7 @@ loop:
 			}
 		case '(':
 			if !singleQuoted && !doubleQuoted && !backQuote {
-				if !dollarQuote && len(buf) > 0 && buf == "$" {
+				if !dollarQuote && len(buf) > 0 && strings.HasSuffix(buf, "$") {
 					dollarQuote = true
 					buf += "("
 					continue
