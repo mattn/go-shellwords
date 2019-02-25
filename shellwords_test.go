@@ -124,6 +124,10 @@ func TestBacktickError(t *testing.T) {
 	if err == nil {
 		t.Fatal("Should be an error")
 	}
+	_, err = parser.Parse(`echo FOO=$(echo1)`)
+	if err == nil {
+		t.Fatal("Should be an error")
+	}
 	_, err = parser.Parse(`echo $(echo1`)
 	if err == nil {
 		t.Fatal("Should be an error")
