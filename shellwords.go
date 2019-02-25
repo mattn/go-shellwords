@@ -121,7 +121,11 @@ loop:
 						if err != nil {
 							return nil, err
 						}
-						buf = out
+						if r == ')' {
+							buf = buf[:len(buf)-len(backtick)-2] + out
+						} else {
+							buf = buf[:len(buf)-len(backtick)-1] + out
+						}
 					}
 					backtick = ""
 					dollarQuote = !dollarQuote
@@ -132,7 +136,7 @@ loop:
 			}
 		case '(':
 			if !singleQuoted && !doubleQuoted && !backQuote {
-				if !dollarQuote && len(buf) > 0 && strings.HasSuffix(buf, "$") {
+				if !dollarQuote && strings.HasSuffix(buf, "$") {
 					dollarQuote = true
 					buf += "("
 					continue
