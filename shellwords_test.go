@@ -260,3 +260,16 @@ func TestHaveRedirect(t *testing.T) {
 		t.Fatalf("Commands should be remaining")
 	}
 }
+
+func TestBackquoteInFlag(t *testing.T) {
+	parser := NewParser()
+	parser.ParseBacktick = true
+	args, err := parser.Parse("cmd -flag=`echo val1` -flag=val2")
+	if err != nil {
+		panic(err)
+	}
+	expected := []string{"cmd", "-flag=val1", "-flag=val2"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}

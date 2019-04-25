@@ -103,7 +103,7 @@ loop:
 						if err != nil {
 							return nil, err
 						}
-						buf = out
+						buf = buf[:len(buf)-len(backtick)] + out
 					}
 					backtick = ""
 					backQuote = !backQuote
