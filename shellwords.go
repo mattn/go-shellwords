@@ -123,11 +123,7 @@ loop:
 						if err != nil {
 							return nil, err
 						}
-						if r == ')' {
-							buf = buf[:len(buf)-len(backtick)-2] + out
-						} else {
-							buf = buf[:len(buf)-len(backtick)-1] + out
-						}
+						buf = buf[:len(buf)-len(backtick)-2] + out
 					}
 					backtick = ""
 					dollarQuote = !dollarQuote
