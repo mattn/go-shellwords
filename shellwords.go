@@ -40,6 +40,7 @@ type Parser struct {
 	ParseEnv      bool
 	ParseBacktick bool
 	Position      int
+	Dir           string
 
 	// If ParseEnv is true, use this for getenv.
 	// If nil, use os.Getenv.
@@ -51,6 +52,7 @@ func NewParser() *Parser {
 		ParseEnv:      ParseEnv,
 		ParseBacktick: ParseBacktick,
 		Position:      0,
+		Dir:           "",
 	}
 }
 
@@ -100,7 +102,7 @@ loop:
 			if !singleQuoted && !doubleQuoted && !dollarQuote {
 				if p.ParseBacktick {
 					if backQuote {
-						out, err := shellRun(backtick)
+						out, err := shellRun(backtick, p.Dir)
 						if err != nil {
 							return nil, err
 						}
@@ -117,7 +119,7 @@ loop:
 			if !singleQuoted && !doubleQuoted && !backQuote {
 				if p.ParseBacktick {
 					if dollarQuote {
-						out, err := shellRun(backtick)
+						out, err := shellRun(backtick, p.Dir)
 						if err != nil {
 							return nil, err
 						}

@@ -3,6 +3,7 @@ package shellwords
 import (
 	"go/build"
 	"os"
+	"path"
 	"reflect"
 	"testing"
 )
@@ -68,8 +69,29 @@ func TestLastSpace(t *testing.T) {
 	}
 }
 
+func TestShellRun(t *testing.T) {
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pwd, err := shellRun("pwd", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pwd2, err := shellRun("pwd", path.Join(dir, "/_example"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if pwd == pwd2 {
+		t.Fatal("`pwd` should be changed")
+	}
+}
+
 func TestBacktick(t *testing.T) {
-	goversion, err := shellRun("go version")
+	goversion, err := shellRun("go version", "")
 	if err != nil {
 		t.Fatal(err)
 	}
