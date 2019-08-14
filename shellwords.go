@@ -155,7 +155,7 @@ loop:
 				continue
 			}
 		case ';', '&', '|', '<', '>':
-			if !(escaped || singleQuoted || doubleQuoted || backQuote) {
+			if !(escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote) {
 				if r == '>' && len(buf) > 0 {
 					if c := buf[0]; '0' <= c && c <= '9' {
 						i -= 1
