@@ -1,6 +1,7 @@
 package shellwords
 
 import (
+	"go/build"
 	"os"
 	"reflect"
 	"testing"
@@ -113,6 +114,19 @@ func TestBacktick(t *testing.T) {
 		t.Fatal(err)
 	}
 	expected = []string{"echo", "$(`echo1)"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
+func TestBacktickMulti(t *testing.T) {
+	parser := NewParser()
+	parser.ParseBacktick = true
+	args, err := parser.Parse(`echo $(go env GOPATH && go env GOROOT)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", build.Default.GOPATH + "\n" + build.Default.GOROOT}
 	if !reflect.DeepEqual(args, expected) {
 		t.Fatalf("Expected %#v, but %#v:", expected, args)
 	}
