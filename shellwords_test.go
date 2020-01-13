@@ -69,6 +69,28 @@ func TestLastSpace(t *testing.T) {
 	}
 }
 
+func TestEmptyArgs(t *testing.T) {
+	args, err := Parse(`foo "" bar ''`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(args) != 4 {
+		t.Fatal("Should have three elements")
+	}
+	if args[0] != "foo" {
+		t.Fatal("1st element should be `foo`")
+	}
+	if args[1] != "" {
+		t.Fatal("2nd element should be empty")
+	}
+	if args[2] != "bar" {
+		t.Fatal("3rd element should be `bar`")
+	}
+	if args[3] != "" {
+		t.Fatal("4th element should be empty")
+	}
+}
+
 func TestShellRun(t *testing.T) {
 	dir, err := os.Getwd()
 	if err != nil {
