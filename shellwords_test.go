@@ -276,6 +276,17 @@ func TestEnvArguments(t *testing.T) {
 	}
 }
 
+func TestEnvArgumentsFail(t *testing.T) {
+	os.Setenv("FOO", "bar '")
+
+	parser := NewParser()
+	parser.ParseEnv = true
+	_, err := parser.Parse("echo $FOO")
+	if err == nil {
+		t.Fatal("Should be an error")
+	}
+}
+
 func TestDupEnv(t *testing.T) {
 	os.Setenv("FOO", "bar")
 	os.Setenv("FOO_BAR", "baz")
