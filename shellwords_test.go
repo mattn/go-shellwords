@@ -23,6 +23,12 @@ var testcases = []struct {
 	{`var "--bar baz"`, []string{`var`, `--bar baz`}},
 	{`var --"bar baz"`, []string{`var`, `--bar baz`}},
 	{`var  --"bar baz"`, []string{`var`, `--bar baz`}},
+	{`a "b"`, []string{`a`, `b`}},
+	{`a " b "`, []string{`a`, ` b `}},
+	{`a "   "`, []string{`a`, `   `}}, // FAILS !
+	{`a 'b'`, []string{`a`, `b`}},
+	{`a ' b '`, []string{`a`, ` b `}},
+	{`a '   '`, []string{`a`, `   `}}, // FAILS !
 }
 
 func TestSimple(t *testing.T) {
@@ -32,7 +38,7 @@ func TestSimple(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(args, testcase.expected) {
-			t.Fatalf("Expected %#v, but %#v:", testcase.expected, args)
+			t.Fatalf("Expected %#v for %q, but %#v:", testcase.expected, testcase.line, args)
 		}
 	}
 }
