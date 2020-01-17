@@ -255,7 +255,22 @@ func TestNoEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := []string{"echo", ""}
+	expected := []string{"echo"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
+func TestEnvArguments(t *testing.T) {
+	os.Setenv("FOO", "bar baz")
+
+	parser := NewParser()
+	parser.ParseEnv = true
+	args, err := parser.Parse("echo $FOO")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "bar", "baz"}
 	if !reflect.DeepEqual(args, expected) {
 		t.Fatalf("Expected %#v, but %#v:", expected, args)
 	}
