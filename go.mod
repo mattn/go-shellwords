@@ -1,3 +1,3 @@
 module github.com/mattn/go-shellwords
 
-go 1.14
+go 1.13
