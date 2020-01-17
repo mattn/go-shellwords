@@ -285,6 +285,19 @@ func TestEnvArgumentsFail(t *testing.T) {
 	if err == nil {
 		t.Fatal("Should be an error")
 	}
+	_, err = parser.Parse("$FOO")
+	if err == nil {
+		t.Fatal("Should be an error")
+	}
+	_, err = parser.Parse("echo $FOO")
+	if err == nil {
+		t.Fatal("Should be an error")
+	}
+	os.Setenv("FOO", "bar `")
+	_, err = parser.Parse("$FOO ")
+	if err == nil {
+		t.Fatal("Should be an error")
+	}
 }
 
 func TestDupEnv(t *testing.T) {
