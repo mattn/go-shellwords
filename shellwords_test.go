@@ -25,10 +25,10 @@ var testcases = []struct {
 	{`var  --"bar baz"`, []string{`var`, `--bar baz`}},
 	{`a "b"`, []string{`a`, `b`}},
 	{`a " b "`, []string{`a`, ` b `}},
-	{`a "   "`, []string{`a`, `   `}}, // FAILS !
+	{`a "   "`, []string{`a`, `   `}},
 	{`a 'b'`, []string{`a`, `b`}},
 	{`a ' b '`, []string{`a`, ` b `}},
-	{`a '   '`, []string{`a`, `   `}}, // FAILS !
+	{`a '   '`, []string{`a`, `   `}},
 }
 
 func TestSimple(t *testing.T) {
