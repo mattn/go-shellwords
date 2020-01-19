@@ -12,6 +12,9 @@ var testcases = []struct {
 	line     string
 	expected []string
 }{
+	{``, []string{}},
+	{`""`, []string{``}},
+	{`''`, []string{``}},
 	{`var --bar=baz`, []string{`var`, `--bar=baz`}},
 	{`var --bar="baz"`, []string{`var`, `--bar=baz`}},
 	{`var "--bar=baz"`, []string{`var`, `--bar=baz`}},
