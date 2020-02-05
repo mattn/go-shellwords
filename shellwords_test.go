@@ -85,6 +85,31 @@ func TestShellRun(t *testing.T) {
 	}
 }
 
+func TestShellRunNoEnv(t *testing.T) {
+	old := os.Getenv("SHELL")
+	defer os.Setenv("SHELL", old)
+	os.Unsetenv("SHELL")
+
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pwd, err := shellRun("pwd", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pwd2, err := shellRun("pwd", path.Join(dir, "/_example"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if pwd == pwd2 {
+		t.Fatal("`pwd` should be changed")
+	}
+}
+
 func TestBacktick(t *testing.T) {
 	goversion, err := shellRun("go version", "")
 	if err != nil {
