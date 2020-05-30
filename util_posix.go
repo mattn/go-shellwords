@@ -27,3 +27,7 @@ func shellRun(line, dir string) (string, error) {
 	}
 	return strings.TrimSpace(string(b)), nil
 }
+
+func isEscapeRune(r rune) bool {
+	return r == '\\'
+}
