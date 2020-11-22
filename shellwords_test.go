@@ -34,6 +34,8 @@ var testcases = []struct {
 	{`a '   '`, []string{`a`, `   `}},
 	{"foo bar\\  ", []string{`foo`, `bar `}},
 	{`foo "" bar ''`, []string{`foo`, ``, `bar`, ``}},
+	{`foo \\`, []string{`foo`, `\`}},
+	{`foo \& bar`, []string{`foo`, `&`, `bar`}},
 }
 
 func TestSimple(t *testing.T) {
