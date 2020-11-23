@@ -38,7 +38,7 @@ func main() {
 				break
 			}
 		}
-		fmt.Println(string([]rune(line)[parser.Position:i]))
-		line = string([]rune(line)[i+1:])
+		fmt.Println(line[parser.Position:i])
+		line = line[i+1:]
 	}
 }
