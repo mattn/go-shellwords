@@ -321,12 +321,12 @@ func TestHaveMore(t *testing.T) {
 	parser := NewParser()
 	parser.ParseEnv = true
 
-	line := "echo foo; seq 1 10"
+	line := "echo 🍺; seq 1 10"
 	args, err := parser.Parse(line)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	expected := []string{"echo", "foo"}
+	expected := []string{"echo", "🍺"}
 	if !reflect.DeepEqual(args, expected) {
 		t.Fatalf("Expected %#v, but %#v:", expected, args)
 	}
