@@ -65,8 +65,10 @@ func (p *Parser) Parse(line string) ([]string, error) {
 	pos := -1
 	got := false
 
+	i := -1
 loop:
-	for i, r := range line {
+	for _, r := range line {
+		i++
 		if escaped {
 			buf += string(r)
 			escaped = false
