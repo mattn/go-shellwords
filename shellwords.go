@@ -72,6 +72,7 @@ loop:
 		if escaped {
 			buf += string(r)
 			escaped = false
+			got = true
 			continue
 		}
 
