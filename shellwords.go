@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"os"
-	"regexp"
 	"strings"
 	"unicode"
 )
@@ -13,8 +12,6 @@ var (
 	ParseEnv      bool = false
 	ParseBacktick bool = false
 )
-
-var envRe = regexp.MustCompile(`\$({[a-zA-Z0-9_]+}|[a-zA-Z0-9_]+)`)
 
 func isSpace(r rune) bool {
 	switch r {
