@@ -1,9 +1,9 @@
 package shellwords
 
 import (
+	"fmt"
 	"go/build"
 	"os"
-	"path"
 	"reflect"
 	"testing"
 )
@@ -20,8 +20,6 @@ var testcases = []struct {
 	{`var "--bar=baz"`, []string{`var`, `--bar=baz`}},
 	{`var "--bar='baz'"`, []string{`var`, `--bar='baz'`}},
 	{"var --bar=`baz`", []string{`var`, "--bar=`baz`"}},
-	{`var "--bar=\"baz'"`, []string{`var`, `--bar="baz'`}},
-	{`var "--bar=\'baz\'"`, []string{`var`, `--bar='baz'`}},
 	{`var --bar='\'`, []string{`var`, `--bar=\`}},
 	{`var "--bar baz"`, []string{`var`, `--bar baz`}},
 	{`var --"bar baz"`, []string{`var`, `--bar baz`}},
@@ -32,21 +30,22 @@ var testcases = []struct {
 	{`a 'b'`, []string{`a`, `b`}},
 	{`a ' b '`, []string{`a`, ` b `}},
 	{`a '   '`, []string{`a`, `   `}},
-	{"foo bar\\  ", []string{`foo`, `bar `}},
 	{`foo "" bar ''`, []string{`foo`, ``, `bar`, ``}},
 	{`foo \\`, []string{`foo`, `\`}},
 	{`foo \& bar`, []string{`foo`, `&`, `bar`}},
 }
 
 func TestSimple(t *testing.T) {
-	for _, testcase := range testcases {
-		args, err := Parse(testcase.line)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !reflect.DeepEqual(args, testcase.expected) {
-			t.Fatalf("Expected %#v for %q, but %#v:", testcase.expected, testcase.line, args)
-		}
+	for i, testcase := range testcases {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			args, err := Parse(testcase.line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(args, testcase.expected) {
+				t.Fatalf("Expected %#v for %q, but %#v:", testcase.expected, testcase.line, args)
+			}
+		})
 	}
 }
 
@@ -63,52 +62,6 @@ func TestError(t *testing.T) {
 	_, err = Parse("foo `")
 	if err == nil {
 		t.Fatal("Should be an error")
-	}
-}
-
-func TestShellRun(t *testing.T) {
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pwd, err := shellRun("pwd", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pwd2, err := shellRun("pwd", path.Join(dir, "/_example"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if pwd == pwd2 {
-		t.Fatal("`pwd` should be changed")
-	}
-}
-
-func TestShellRunNoEnv(t *testing.T) {
-	old := os.Getenv("SHELL")
-	defer os.Setenv("SHELL", old)
-	os.Unsetenv("SHELL")
-
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pwd, err := shellRun("pwd", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pwd2, err := shellRun("pwd", path.Join(dir, "/_example"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if pwd == pwd2 {
-		t.Fatal("`pwd` should be changed")
 	}
 }
 

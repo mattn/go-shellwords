@@ -145,7 +145,7 @@ loop:
 			continue
 		}
 
-		if r == '\\' {
+		if isEscapeRune(r) {
 			if singleQuoted {
 				buf += string(r)
 			} else {
