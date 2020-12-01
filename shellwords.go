@@ -163,9 +163,7 @@ loop:
 						if err != nil {
 							return nil, err
 						}
-						for _, str := range strs {
-							args = append(args, str)
-						}
+						args = append(args, strs...)
 					} else {
 						args = append(args, replaceEnv(p.Getenv, buf))
 					}
@@ -267,9 +265,7 @@ loop:
 				if err != nil {
 					return nil, err
 				}
-				for _, str := range strs {
-					args = append(args, str)
-				}
+				args = append(args, strs...)
 			} else {
 				args = append(args, replaceEnv(p.Getenv, buf))
 			}
