@@ -407,3 +407,45 @@ func TestEnvInQuoted(t *testing.T) {
 		t.Fatalf("Expected %#v, but %#v:", expected, args)
 	}
 }
+
+func TestParseWithEnvs(t *testing.T) {
+	tests := []struct {
+		line               string
+		wantEnvs, wantArgs []string
+	}{
+		{
+			line:     "FOO=foo cmd --args=A=B",
+			wantEnvs: []string{"FOO=foo"},
+			wantArgs: []string{"cmd", "--args=A=B"},
+		},
+		{
+			line:     "FOO=foo BAR=bar cmd --args=A=B -A=B",
+			wantEnvs: []string{"FOO=foo", "BAR=bar"},
+			wantArgs: []string{"cmd", "--args=A=B", "-A=B"},
+		},
+		{
+			line:     `sh -c "FOO=foo BAR=bar cmd --args=A=B -A=B"`,
+			wantEnvs: []string{},
+			wantArgs: []string{"sh", "-c", "FOO=foo BAR=bar cmd --args=A=B -A=B"},
+		},
+		{
+			line:     "cmd --args=A=B -A=B",
+			wantEnvs: []string{},
+			wantArgs: []string{"cmd", "--args=A=B", "-A=B"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			envs, args, err := ParseWithEnvs(tt.line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(envs, tt.wantEnvs) {
+				t.Errorf("Expected %#v, but %#v", tt.wantEnvs, envs)
+			}
+			if !reflect.DeepEqual(args, tt.wantArgs) {
+				t.Errorf("Expected %#v, but %#v", tt.wantArgs, args)
+			}
+		})
+	}
+}

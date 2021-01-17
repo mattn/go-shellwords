@@ -14,6 +14,12 @@ args, err := shellwords.Parse("./foo --bar=baz")
 ```
 
 ```go
+envs, args, err := shellwords.ParseWithEnvs("FOO=foo BAR=baz ./foo --bar=baz")
+// envs should be ["FOO=foo", "BAR=baz"]
+// args should be ["./foo", "--bar=baz"]
+```
+
+```go
 os.Setenv("FOO", "bar")
 p := shellwords.NewParser()
 p.ParseEnv = true

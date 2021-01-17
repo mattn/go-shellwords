@@ -290,6 +290,35 @@ loop:
 	return args, nil
 }
 
+func (p *Parser) ParseWithEnvs(line string) (envs []string, args []string, err error) {
+	_args, err := p.Parse(line)
+	if err != nil {
+		return nil, nil, err
+	}
+	envs = []string{}
+	args = []string{}
+	parsingEnv := true
+	for _, arg := range _args {
+		if parsingEnv && isEnv(arg) {
+			envs = append(envs, arg)
+		} else {
+			if parsingEnv {
+				parsingEnv = false
+			}
+			args = append(args, arg)
+		}
+	}
+	return envs, args, nil
+}
+
+func isEnv(arg string) bool {
+	return len(strings.Split(arg, "=")) == 2
+}
+
 func Parse(line string) ([]string, error) {
 	return NewParser().Parse(line)
+}
+
+func ParseWithEnvs(line string) (envs []string, args []string, err error) {
+	return NewParser().ParseWithEnvs(line)
 }
