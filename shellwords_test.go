@@ -454,3 +454,53 @@ func TestParseWithEnvs(t *testing.T) {
 		})
 	}
 }
+
+func TestSubShellEnv(t *testing.T) {
+	myParser := &Parser{
+		ParseEnv: true,
+	}
+
+	errTmpl := "bad arg parsing:\nexpected: %#v\nactual  : %#v\n"
+
+	t.Run("baseline", func(t *testing.T) {
+		args, err := myParser.Parse(`program -f abc.txt`)
+		if err != nil {
+			t.Fatalf("err should be nil: %v", err)
+		}
+		expected := []string{"program", "-f", "abc.txt"}
+		if len(args) != 3 {
+			t.Fatalf(errTmpl, expected, args)
+		}
+		if args[0] != expected[0] || args[1] != expected[1] || args[2] != expected[2] {
+			t.Fatalf(errTmpl, expected, args)
+		}
+	})
+
+	t.Run("single-quoted", func(t *testing.T) {
+		args, err := myParser.Parse(`sh -c 'echo foo'`)
+		if err != nil {
+			t.Fatalf("err should be nil: %v", err)
+		}
+		expected := []string{"sh", "-c", "echo foo"}
+		if len(args) != 3 {
+			t.Fatalf(errTmpl, expected, args)
+		}
+		if args[0] != expected[0] || args[1] != expected[1] || args[2] != expected[2] {
+			t.Fatalf(errTmpl, expected, args)
+		}
+	})
+
+	t.Run("double-quoted", func(t *testing.T) {
+		args, err := myParser.Parse(`sh -c "echo foo"`)
+		if err != nil {
+			t.Fatalf("err should be nil: %v", err)
+		}
+		expected := []string{"sh", "-c", "echo foo"}
+		if len(args) != 3 {
+			t.Fatalf(errTmpl, expected, args)
+		}
+		if args[0] != expected[0] || args[1] != expected[1] || args[2] != expected[2] {
+			t.Fatalf(errTmpl, expected, args)
+		}
+	})
+}
