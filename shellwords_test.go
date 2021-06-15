@@ -503,4 +503,44 @@ func TestSubShellEnv(t *testing.T) {
 			t.Fatalf(errTmpl, expected, args)
 		}
 	})
+
+	t.Run("single-quoted-subshell-call", func(t *testing.T) {
+		args, err := myParser.Parse(`sh -c 'echo $(foo)'`)
+		if err != nil {
+			t.Fatalf("err should be nil: %v", err)
+		}
+		expected := []string{"sh", "-c", "echo $(foo)"}
+		if len(args) != 3 {
+			t.Fatalf(errTmpl, expected, args)
+		}
+		if args[0] != expected[0] || args[1] != expected[1] || args[2] != expected[2] {
+			t.Fatalf(errTmpl, expected, args)
+		}
+	})
+	t.Run("double-quoted-subshell-call", func(t *testing.T) {
+		args, err := myParser.Parse(`sh -c "echo $(foo)"`)
+		if err != nil {
+			t.Fatalf("err should be nil: %v", err)
+		}
+		expected := []string{"sh", "-c", "echo $(foo)"}
+		if len(args) != 3 {
+			t.Fatalf(errTmpl, expected, args)
+		}
+		if args[0] != expected[0] || args[1] != expected[1] || args[2] != expected[2] {
+			t.Fatalf(errTmpl, expected, args)
+		}
+	})
+	t.Run("subshell-call-call", func(t *testing.T) {
+		args, err := myParser.Parse(`sh -c "echo $(foo $(bar))"`)
+		if err != nil {
+			t.Fatalf("err should be nil: %v", err)
+		}
+		expected := []string{"sh", "-c", "echo $(foo $(bar))"}
+		if len(args) != 3 {
+			t.Fatalf(errTmpl, expected, args)
+		}
+		if args[0] != expected[0] || args[1] != expected[1] || args[2] != expected[2] {
+			t.Fatalf(errTmpl, expected, args)
+		}
+	})
 }

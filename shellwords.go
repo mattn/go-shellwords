@@ -43,7 +43,12 @@ func replaceEnv(getenv func(string) string, s string) string {
 				buf.WriteRune(r)
 				break
 			}
-			if rs[i] == 0x7b {
+			if rs[i] == '(' { // subshell call, not env variable
+				buf.WriteRune(rs[i-1])
+				buf.WriteRune(rs[i])
+				continue
+			}
+			if rs[i] == 0x7b { // '{', bracketed shell variable
 				i++
 				p := i
 				for ; i < len(rs); i++ {
