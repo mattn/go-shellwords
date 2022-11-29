@@ -38,6 +38,7 @@ var testcases = []struct {
 	{`foo "" bar ''`, []string{`foo`, ``, `bar`, ``}},
 	{`foo \\`, []string{`foo`, `\`}},
 	{`foo \& bar`, []string{`foo`, `&`, `bar`}},
+	{`sh -c "printf 'Hello\tworld\n'"`, []string{`sh`, `-c`, "printf 'Hello\tworld\n'"}},
 }
 
 func TestSimple(t *testing.T) {

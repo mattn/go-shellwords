@@ -136,6 +136,12 @@ loop:
 	for _, r := range line {
 		i++
 		if escaped {
+			if r == 't' {
+				r = '\t'
+			}
+			if r == 'n' {
+				r = '\n'
+			}
 			buf += string(r)
 			escaped = false
 			got = argSingle
