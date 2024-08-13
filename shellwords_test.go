@@ -10,10 +10,12 @@ import (
 	"testing"
 )
 
-var testcases = []struct {
+type testcase struct {
 	line     string
 	expected []string
-}{
+}
+
+var testcases = []testcase{
 	{``, []string{}},
 	{`""`, []string{``}},
 	{`''`, []string{``}},
@@ -44,6 +46,30 @@ var testcases = []struct {
 func TestSimple(t *testing.T) {
 	for _, testcase := range testcases {
 		args, err := Parse(testcase.line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(args, testcase.expected) {
+			t.Fatalf("Expected %#v for %q, but %#v:", testcase.expected, testcase.line, args)
+		}
+	}
+}
+
+func TestComment(t *testing.T) {
+	allCases := append(testcases, []testcase{
+		{"# comment", []string{}},
+		{"foo not#comment", []string{"foo", "not#comment"}},
+		{`foo "bar # baz" # comment`, []string{"foo", "bar # baz"}},
+		{"foo \"bar # baz\" # comment\nfoo\nbar # baz",
+			[]string{"foo", "bar # baz", "foo", "bar"}},
+		{"echo '# list all files' # line\\ncomment\n# whole line comment\nls -al '#' # more comment",
+			[]string{"echo", "# list all files", "ls", "-al", "#"}},
+	}...)
+
+	parser := NewParser()
+	parser.ParseComment = true
+	for _, testcase := range allCases {
+		args, err := parser.Parse(testcase.line)
 		if err != nil {
 			t.Fatal(err)
 		}
