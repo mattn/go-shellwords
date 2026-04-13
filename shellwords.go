@@ -204,13 +204,12 @@ loop:
 		case ')':
 			if !singleQuoted && !doubleQuoted && !backQuote {
 				if p.ParseBacktick {
-					// Hardened fix:
+					// Security fix:
 					// A bare ')' must never open dollarQuote state.
-					// Only close an already-open $(...) region.
+					// Preserve prior behavior by rejecting unmatched ')'
+					// when command substitution parsing is enabled.
 					if !dollarQuote {
-						buf += string(r)
-						got = argSingle
-						continue
+						return nil, errors.New("invalid command line string")
 					}
 
 					out, err := shellRun(backtick, p.Dir)
@@ -230,17 +229,19 @@ loop:
 					continue
 				}
 
-				// Default mode:
-				// Do not toggle dollarQuote on a bare ')'.
-				// Treat it as a literal character.
-				if !dollarQuote {
+				// Backtick parsing disabled:
+				// preserve literal text for $(...) constructs instead of
+				// silently dropping the closing ')'.
+				if dollarQuote {
 					buf += string(r)
+					backtick = ""
+					dollarQuote = false
 					got = argSingle
 					continue
 				}
 
-				backtick = ""
-				dollarQuote = false
+				buf += string(r)
+				got = argSingle
 				continue
 			}
 
