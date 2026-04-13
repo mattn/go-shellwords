@@ -230,17 +230,15 @@ loop:
 				}
 
 				// Backtick parsing disabled:
-				// preserve literal text for $(...) constructs instead of
-				// silently dropping the closing ')'.
-				if dollarQuote {
-					buf += string(r)
-					backtick = ""
-					dollarQuote = false
-					got = argSingle
-					continue
+				// A bare ')' is a syntax error, consistent with '(' handling.
+				// Only close an already-open $(...) region.
+				if !dollarQuote {
+					return nil, errors.New("invalid command line string")
 				}
 
 				buf += string(r)
+				backtick = ""
+				dollarQuote = false
 				got = argSingle
 				continue
 			}

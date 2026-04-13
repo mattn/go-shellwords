@@ -27,21 +27,11 @@ func TestBareClosingParen_NoExecution_ReturnsError(t *testing.T) {
 	}
 }
 
-// Default behavior → ‘)’ is a literal; it does not break parsing
-func TestBareClosingParen_DefaultParsingLiteral(t *testing.T) {
-	out, err := Parse(")a b)c d")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	want := []string{")a", "b)c", "d"}
-	if len(out) != len(want) {
-		t.Fatalf("unexpected token count: got %d, want %d, out=%#v", len(out), len(want), out)
-	}
-	for i := range want {
-		if out[i] != want[i] {
-			t.Fatalf("unexpected token at %d: got %q, want %q, out=%#v", i, out[i], want[i], out)
-		}
+// Default behavior → bare ‘)’ is a syntax error, consistent with ‘(‘ handling
+func TestBareClosingParen_DefaultParsingError(t *testing.T) {
+	_, err := Parse(")a b)c d")
+	if err == nil {
+		t.Fatal("expected error for unmatched ‘)’, got nil")
 	}
 }
 
