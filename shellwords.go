@@ -200,23 +200,51 @@ loop:
 				backtick = ""
 				backQuote = !backQuote
 			}
+
 		case ')':
 			if !singleQuoted && !doubleQuoted && !backQuote {
 				if p.ParseBacktick {
-					if dollarQuote {
-						out, err := shellRun(backtick, p.Dir)
-						if err != nil {
-							return nil, err
-						}
-						buf = buf[:len(buf)-len(backtick)-2] + out
+					// Security fix:
+					// A bare ')' must never open dollarQuote state.
+					// Preserve prior behavior by rejecting unmatched ')'
+					// when command substitution parsing is enabled.
+					if !dollarQuote {
+						return nil, errors.New("invalid command line string")
 					}
+
+					out, err := shellRun(backtick, p.Dir)
+					if err != nil {
+						return nil, err
+					}
+
+					// Defensive guard: valid $(...) implies the buffer must contain
+					// the "$(" prefix plus the collected command body.
+					if len(buf) < len(backtick)+2 {
+						return nil, errors.New("invalid command line string")
+					}
+
+					buf = buf[:len(buf)-len(backtick)-2] + out
 					backtick = ""
-					dollarQuote = !dollarQuote
+					dollarQuote = false
 					continue
 				}
-				backtick = ""
-				dollarQuote = !dollarQuote
+
+				// Backtick parsing disabled:
+				// preserve literal text for $(...) constructs instead of
+				// silently dropping the closing ')'.
+				if dollarQuote {
+					buf += string(r)
+					backtick = ""
+					dollarQuote = false
+					got = argSingle
+					continue
+				}
+
+				buf += string(r)
+				got = argSingle
+				continue
 			}
+
 		case '(':
 			if !singleQuoted && !doubleQuoted && !backQuote {
 				if !dollarQuote && strings.HasSuffix(buf, "$") {
@@ -227,6 +255,7 @@ loop:
 					return nil, errors.New("invalid command line string")
 				}
 			}
+
 		case '"':
 			if !singleQuoted && !dollarQuote {
 				if doubleQuoted {
@@ -235,6 +264,7 @@ loop:
 				doubleQuoted = !doubleQuoted
 				continue
 			}
+
 		case '\'':
 			if !doubleQuoted && !dollarQuote {
 				if singleQuoted {
@@ -243,6 +273,7 @@ loop:
 				singleQuoted = !singleQuoted
 				continue
 			}
+
 		case ';', '&', '|', '<', '>':
 			if !(escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote) {
 				if r == '>' && len(buf) > 0 {
