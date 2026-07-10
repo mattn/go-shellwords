@@ -49,6 +49,11 @@ args, err := p.Parse("./foo # comment")
 // args should be ["./foo"]
 ```
 
+```go
+p := shellwords.NewParser()
+p.SetExcludeSeparators('\t', ';')
+```
+
 # Thanks
 
 This is based on cpan module [Parse::CommandLine](https://metacpan.org/pod/Parse::CommandLine).

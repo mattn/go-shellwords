@@ -102,6 +102,7 @@ type Parser struct {
 	ParseComment  bool
 	Position      int
 	Dir           string
+	excludedSep   []rune
 
 	// If ParseEnv is true, use this for getenv.
 	// If nil, use os.Getenv.
@@ -115,6 +116,7 @@ func NewParser() *Parser {
 		ParseComment:  ParseComment,
 		Position:      0,
 		Dir:           "",
+		excludedSep:   []rune{},
 	}
 }
 
@@ -125,6 +127,27 @@ const (
 	argSingle
 	argQuoted
 )
+
+// isExcluded checks if separator should be ignored
+func (p *Parser) isExcluded(r rune) bool {
+	for _, v := range p.excludedSep {
+		if v == r {
+			return true
+		}
+	}
+	return false
+}
+
+// SetExcludeSeparators indictes the parser to ignore provided separators when parsing
+// example: parser.SetExcludeSeparators(';','\t')
+func (p *Parser) SetExcludeSeparators(r ...rune) {
+	p.excludedSep = r
+}
+
+// ExcludedSeparators returns excluded separators
+func (p *Parser) ExcludedSeparators() []rune {
+	return p.excludedSep
+}
 
 func (p *Parser) Parse(line string) ([]string, error) {
 	args := []string{}
@@ -178,6 +201,15 @@ loop:
 				buf += string(r)
 			} else {
 				escaped = true
+			}
+			continue
+		}
+
+		if p.isExcluded(r) {
+			got = argSingle
+			buf += string(r)
+			if backQuote || dollarQuote {
+				backtick += string(r)
 			}
 			continue
 		}
