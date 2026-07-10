@@ -284,8 +284,15 @@ loop:
 		case ';', '&', '|', '<', '>':
 			if !(escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote) {
 				if r == '>' && len(buf) > 0 {
-					if c := buf[0]; '0' <= c && c <= '9' {
-						i -= 1
+					isDigits := true
+					for _, c := range buf {
+						if c < '0' || c > '9' {
+							isDigits = false
+							break
+						}
+					}
+					if isDigits {
+						i -= len(buf)
 						got = argNo
 					}
 				}

@@ -490,6 +490,36 @@ func TestHaveRedirect(t *testing.T) {
 	}
 }
 
+func TestHaveRedirectPrefix(t *testing.T) {
+	parser := NewParser()
+
+	line := "cmd 2x> file"
+	args, err := parser.Parse(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"cmd", "2x"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+	if rest := line[parser.Position:]; rest != "> file" {
+		t.Fatalf("Expected %q, but %q:", "> file", rest)
+	}
+
+	line = "cmd 10> file"
+	args, err = parser.Parse(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected = []string{"cmd"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+	if rest := line[parser.Position:]; rest != "10> file" {
+		t.Fatalf("Expected %q, but %q:", "10> file", rest)
+	}
+}
+
 func TestBackquoteInFlag(t *testing.T) {
 	parser := NewParser()
 	parser.ParseBacktick = true
