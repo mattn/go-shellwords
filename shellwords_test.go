@@ -205,6 +205,29 @@ func TestBacktickQuoted(t *testing.T) {
 	}
 }
 
+func TestBacktickAfterQuoted(t *testing.T) {
+	parser := NewParser()
+	parser.ParseBacktick = true
+
+	args, err := parser.Parse(`echo "a b" c$(echo x)d`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "a b", "cxd"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	args, err = parser.Parse(`echo "a b" $(echo x)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected = []string{"echo", "a b", "x"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
 func TestBacktickMulti(t *testing.T) {
 	parser := NewParser()
 	parser.ParseBacktick = true
