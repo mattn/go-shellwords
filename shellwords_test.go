@@ -248,6 +248,20 @@ func TestCustomEnv(t *testing.T) {
 	}
 }
 
+func TestEnvMultibyte(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+	parser.Getenv = func(k string) string { return map[string]string{"FOO": "bar"}[k] }
+	args, err := parser.Parse("echo あい$FOO ${FOO}う")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "あいbar", "barう"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
 func TestNoEnv(t *testing.T) {
 	parser := NewParser()
 	parser.ParseEnv = true
