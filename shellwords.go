@@ -11,6 +11,7 @@ import (
 var (
 	ParseEnv      bool = false
 	ParseBacktick bool = false
+	ParseComment  bool = false
 )
 
 func isSpace(r rune) bool {
@@ -98,6 +99,7 @@ func replaceEnv(getenv func(string) string, s string) string {
 type Parser struct {
 	ParseEnv      bool
 	ParseBacktick bool
+	ParseComment  bool
 	Position      int
 	Dir           string
 
@@ -110,6 +112,7 @@ func NewParser() *Parser {
 	return &Parser{
 		ParseEnv:      ParseEnv,
 		ParseBacktick: ParseBacktick,
+		ParseComment:  ParseComment,
 		Position:      0,
 		Dir:           "",
 	}
@@ -126,7 +129,7 @@ const (
 func (p *Parser) Parse(line string) ([]string, error) {
 	args := []string{}
 	buf := ""
-	var escaped, doubleQuoted, singleQuoted, backQuote, dollarQuote bool
+	var escaped, doubleQuoted, singleQuoted, backQuote, dollarQuote, comment bool
 	backtick := ""
 
 	pos := -1
@@ -136,6 +139,14 @@ func (p *Parser) Parse(line string) ([]string, error) {
 loop:
 	for _, r := range line {
 		i++
+
+		if comment {
+			if r == '\n' {
+				comment = false
+			}
+			continue
+		}
+
 		if escaped {
 			escaped = false
 			if backQuote || dollarQuote {
@@ -305,6 +316,11 @@ loop:
 				}
 				pos = i
 				break loop
+			}
+		case '#':
+			if p.ParseComment && len(buf) == 0 && !(escaped || singleQuoted || doubleQuoted) {
+				comment = true
+				continue loop
 			}
 		}
 

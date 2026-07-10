@@ -42,6 +42,13 @@ args, err := p.Parse("./foo `echo $SHELL`")
 // args should be ["./foo", "/bin/bash"]
 ```
 
+```go
+p := shellwords.NewParser()
+p.ParseComment = true
+args, err := p.Parse("./foo # comment")
+// args should be ["./foo"]
+```
+
 # Thanks
 
 This is based on cpan module [Parse::CommandLine](https://metacpan.org/pod/Parse::CommandLine).
