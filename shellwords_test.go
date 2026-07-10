@@ -80,6 +80,55 @@ func TestComment(t *testing.T) {
 	}
 }
 
+func TestCommentInBacktick(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires sh")
+	}
+	parser := NewParser()
+	parser.ParseComment = true
+	parser.ParseBacktick = true
+	args, err := parser.Parse("echo `# x` done")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "done"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
+func TestEmptySubstitution(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires sh")
+	}
+	parser := NewParser()
+	parser.ParseBacktick = true
+	args, err := parser.Parse("echo `true` done $(true) \"\"")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "done", ""}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
+func TestExcludeSeparators(t *testing.T) {
+	parser := NewParser()
+	parser.SetExcludeSeparators(';', '\t')
+	args, err := parser.Parse("a;b c\td e; \"f;g\"")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"a;b", "c\td", "e;", "f;g"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+	if got := string(parser.ExcludedSeparators()); got != ";\t" {
+		t.Fatalf("Expected %q, but %q:", ";\t", got)
+	}
+}
+
 func TestError(t *testing.T) {
 	_, err := Parse("foo '")
 	if err == nil {
