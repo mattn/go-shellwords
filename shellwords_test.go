@@ -228,6 +228,32 @@ func TestBacktickAfterQuoted(t *testing.T) {
 	}
 }
 
+func TestSubstitutionEscaped(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("cmd.exe does not interpret backslash escapes")
+	}
+	parser := NewParser()
+	parser.ParseBacktick = true
+
+	args, err := parser.Parse(`echo $(echo a\ b)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "a b"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	args, err = parser.Parse("echo `echo a\\  b`")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected = []string{"echo", "a  b"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
 func TestBacktickMulti(t *testing.T) {
 	parser := NewParser()
 	parser.ParseBacktick = true
