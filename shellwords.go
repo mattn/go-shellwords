@@ -11,6 +11,7 @@ import (
 var (
 	ParseEnv      bool = false
 	ParseBacktick bool = false
+	ParseComment  bool = false
 )
 
 func isSpace(r rune) bool {
@@ -63,7 +64,7 @@ func replaceEnv(getenv func(string) string, s string) string {
 					return s
 				}
 				if i > p {
-					buf.WriteString(getenv(s[p:i]))
+					buf.WriteString(getenv(string(rs[p:i])))
 				}
 			} else {
 				p := i
@@ -81,10 +82,11 @@ func replaceEnv(getenv func(string) string, s string) string {
 					}
 				}
 				if i > p {
-					buf.WriteString(getenv(s[p:i]))
+					buf.WriteString(getenv(string(rs[p:i])))
 					i--
 				} else {
-					buf.WriteString(s[p:])
+					buf.WriteRune('$')
+					i--
 				}
 			}
 		} else {
@@ -97,6 +99,7 @@ func replaceEnv(getenv func(string) string, s string) string {
 type Parser struct {
 	ParseEnv      bool
 	ParseBacktick bool
+	ParseComment  bool
 	Position      int
 	Dir           string
 	excludedSep   []rune
@@ -110,6 +113,7 @@ func NewParser() *Parser {
 	return &Parser{
 		ParseEnv:      ParseEnv,
 		ParseBacktick: ParseBacktick,
+		ParseComment:  ParseComment,
 		Position:      0,
 		Dir:           "",
 		excludedSep:   []rune{},
@@ -148,7 +152,7 @@ func (p *Parser) ExcludedSeparators() []rune {
 func (p *Parser) Parse(line string) ([]string, error) {
 	args := []string{}
 	buf := ""
-	var escaped, doubleQuoted, singleQuoted, backQuote, dollarQuote bool
+	var escaped, doubleQuoted, singleQuoted, backQuote, dollarQuote, comment bool
 	backtick := ""
 
 	pos := -1
@@ -158,7 +162,29 @@ func (p *Parser) Parse(line string) ([]string, error) {
 loop:
 	for _, r := range line {
 		i++
+
+		if comment {
+			if r == '\n' {
+				comment = false
+			}
+			continue
+		}
+
 		if escaped {
+			escaped = false
+			if backQuote || dollarQuote {
+				buf += "\\" + string(r)
+				backtick += "\\" + string(r)
+				got = argSingle
+				continue
+			}
+			if p.ParseEnv && r == '$' {
+				// Keep the backslash so replaceEnv treats the '$' as
+				// literal instead of expanding it.
+				buf += `\$`
+				got = argSingle
+				continue
+			}
 			if r == 't' {
 				r = '\t'
 			}
@@ -166,7 +192,6 @@ loop:
 				r = '\n'
 			}
 			buf += string(r)
-			escaped = false
 			got = argSingle
 			continue
 		}
@@ -192,7 +217,9 @@ loop:
 		if isSpace(r) {
 			if singleQuoted || doubleQuoted || backQuote || dollarQuote {
 				buf += string(r)
-				backtick += string(r)
+				if backQuote || dollarQuote {
+					backtick += string(r)
+				}
 			} else if got != argNo {
 				if p.ParseEnv {
 					if got == argSingle {
@@ -232,26 +259,52 @@ loop:
 				backtick = ""
 				backQuote = !backQuote
 			}
+
 		case ')':
 			if !singleQuoted && !doubleQuoted && !backQuote {
 				if p.ParseBacktick {
-					if dollarQuote {
-						out, err := shellRun(backtick, p.Dir)
-						if err != nil {
-							return nil, err
-						}
-						buf = buf[:len(buf)-len(backtick)-2] + out
+					// Security fix:
+					// A bare ')' must never open dollarQuote state.
+					// Preserve prior behavior by rejecting unmatched ')'
+					// when command substitution parsing is enabled.
+					if !dollarQuote {
+						return nil, errors.New("invalid command line string")
 					}
+
+					out, err := shellRun(backtick, p.Dir)
+					if err != nil {
+						return nil, err
+					}
+
+					// Defensive guard: valid $(...) implies the buffer must contain
+					// the "$(" prefix plus the collected command body.
+					if len(buf) < len(backtick)+2 {
+						return nil, errors.New("invalid command line string")
+					}
+
+					buf = buf[:len(buf)-len(backtick)-2] + out
 					backtick = ""
-					dollarQuote = !dollarQuote
+					dollarQuote = false
 					continue
 				}
+
+				// Backtick parsing disabled:
+				// A bare ')' is a syntax error, consistent with '(' handling.
+				// Only close an already-open $(...) region.
+				if !dollarQuote {
+					return nil, errors.New("invalid command line string")
+				}
+
+				buf += string(r)
 				backtick = ""
-				dollarQuote = !dollarQuote
+				dollarQuote = false
+				got = argSingle
+				continue
 			}
+
 		case '(':
 			if !singleQuoted && !doubleQuoted && !backQuote {
-				if !dollarQuote && strings.HasSuffix(buf, "$") {
+				if !dollarQuote && strings.HasSuffix(buf, "$") && !strings.HasSuffix(buf, `\$`) {
 					dollarQuote = true
 					buf += "("
 					continue
@@ -259,32 +312,47 @@ loop:
 					return nil, errors.New("invalid command line string")
 				}
 			}
+
 		case '"':
-			if !singleQuoted && !dollarQuote {
+			if !singleQuoted && !dollarQuote && !backQuote {
 				if doubleQuoted {
 					got = argQuoted
 				}
 				doubleQuoted = !doubleQuoted
 				continue
 			}
+
 		case '\'':
-			if !doubleQuoted && !dollarQuote {
+			if !doubleQuoted && !dollarQuote && !backQuote {
 				if singleQuoted {
 					got = argQuoted
 				}
 				singleQuoted = !singleQuoted
 				continue
 			}
+
 		case ';', '&', '|', '<', '>':
 			if !(escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote) {
 				if r == '>' && len(buf) > 0 {
-					if c := buf[0]; '0' <= c && c <= '9' {
-						i -= 1
+					isDigits := true
+					for _, c := range buf {
+						if c < '0' || c > '9' {
+							isDigits = false
+							break
+						}
+					}
+					if isDigits {
+						i -= len(buf)
 						got = argNo
 					}
 				}
 				pos = i
 				break loop
+			}
+		case '#':
+			if p.ParseComment && len(buf) == 0 && !(escaped || singleQuoted || doubleQuoted) {
+				comment = true
+				continue loop
 			}
 		}
 
@@ -343,7 +411,18 @@ func (p *Parser) ParseWithEnvs(line string) (envs []string, args []string, err e
 }
 
 func isEnv(arg string) bool {
-	return len(strings.Split(arg, "=")) == 2
+	i := strings.IndexByte(arg, '=')
+	if i <= 0 {
+		return false
+	}
+	for j := 0; j < i; j++ {
+		c := arg[j]
+		if c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || (j > 0 && '0' <= c && c <= '9') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func Parse(line string) ([]string, error) {

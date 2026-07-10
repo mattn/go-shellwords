@@ -44,7 +44,14 @@ args, err := p.Parse("./foo `echo $SHELL`")
 
 ```go
 p := shellwords.NewParser()
-p.SetExcludeSeparators('\t',';')
+p.ParseComment = true
+args, err := p.Parse("./foo # comment")
+// args should be ["./foo"]
+```
+
+```go
+p := shellwords.NewParser()
+p.SetExcludeSeparators('\t', ';')
 ```
 
 # Thanks

@@ -7,13 +7,16 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"runtime"
 	"testing"
 )
 
-var testcases = []struct {
+type testcase struct {
 	line     string
 	expected []string
-}{
+}
+
+var testcases = []testcase{
 	{``, []string{}},
 	{`""`, []string{``}},
 	{`''`, []string{``}},
@@ -44,6 +47,30 @@ var testcases = []struct {
 func TestSimple(t *testing.T) {
 	for _, testcase := range testcases {
 		args, err := Parse(testcase.line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(args, testcase.expected) {
+			t.Fatalf("Expected %#v for %q, but %#v:", testcase.expected, testcase.line, args)
+		}
+	}
+}
+
+func TestComment(t *testing.T) {
+	allCases := append(testcases, []testcase{
+		{"# comment", []string{}},
+		{"foo not#comment", []string{"foo", "not#comment"}},
+		{`foo "bar # baz" # comment`, []string{"foo", "bar # baz"}},
+		{"foo \"bar # baz\" # comment\nfoo\nbar # baz",
+			[]string{"foo", "bar # baz", "foo", "bar"}},
+		{"echo '# list all files' # line\\ncomment\n# whole line comment\nls -al '#' # more comment",
+			[]string{"echo", "# list all files", "ls", "-al", "#"}},
+	}...)
+
+	parser := NewParser()
+	parser.ParseComment = true
+	for _, testcase := range allCases {
+		args, err := parser.Parse(testcase.line)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -169,6 +196,90 @@ func TestBacktick(t *testing.T) {
 	}
 }
 
+func TestBacktickQuoted(t *testing.T) {
+	parser := NewParser()
+
+	args, err := parser.Parse("echo `echo \"foo  bar\"`")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "`echo \"foo  bar\"`"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	if runtime.GOOS == "windows" {
+		t.Skip("cmd.exe does not strip quotes")
+	}
+
+	parser.ParseBacktick = true
+	args, err = parser.Parse("echo `echo \"foo  bar\"`")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected = []string{"echo", "foo  bar"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	args, err = parser.Parse("echo `echo 'foo  bar'`")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
+func TestBacktickAfterQuoted(t *testing.T) {
+	parser := NewParser()
+	parser.ParseBacktick = true
+
+	args, err := parser.Parse(`echo "a b" c$(echo x)d`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "a b", "cxd"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	args, err = parser.Parse(`echo "a b" $(echo x)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected = []string{"echo", "a b", "x"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
+func TestSubstitutionEscaped(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("cmd.exe does not interpret backslash escapes")
+	}
+	parser := NewParser()
+	parser.ParseBacktick = true
+
+	args, err := parser.Parse(`echo $(echo a\ b)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "a b"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	args, err = parser.Parse("echo `echo a\\  b`")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected = []string{"echo", "a  b"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
 func TestBacktickMulti(t *testing.T) {
 	parser := NewParser()
 	parser.ParseBacktick = true
@@ -243,6 +354,48 @@ func TestCustomEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 	expected := []string{"echo", "baz"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
+func TestEnvMultibyte(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+	parser.Getenv = func(k string) string { return map[string]string{"FOO": "bar"}[k] }
+	args, err := parser.Parse("echo あい$FOO ${FOO}う")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "あいbar", "barう"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
+func TestEnvBareDollar(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+	parser.Getenv = func(k string) string { return map[string]string{"FOO": "bar"}[k] }
+	args, err := parser.Parse("echo $@x $FOO")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "$@x", "bar"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
+func TestEnvEscapedDollar(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+	parser.Getenv = func(k string) string { return map[string]string{"FOO": "bar"}[k] }
+	args, err := parser.Parse(`echo \$FOO "\$FOO" $FOO`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "$FOO", "$FOO", "bar"}
 	if !reflect.DeepEqual(args, expected) {
 		t.Fatalf("Expected %#v, but %#v:", expected, args)
 	}
@@ -377,6 +530,36 @@ func TestHaveRedirect(t *testing.T) {
 	}
 }
 
+func TestHaveRedirectPrefix(t *testing.T) {
+	parser := NewParser()
+
+	line := "cmd 2x> file"
+	args, err := parser.Parse(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"cmd", "2x"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+	if rest := line[parser.Position:]; rest != "> file" {
+		t.Fatalf("Expected %q, but %q:", "> file", rest)
+	}
+
+	line = "cmd 10> file"
+	args, err = parser.Parse(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected = []string{"cmd"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+	if rest := line[parser.Position:]; rest != "10> file" {
+		t.Fatalf("Expected %q, but %q:", "10> file", rest)
+	}
+}
+
 func TestBackquoteInFlag(t *testing.T) {
 	parser := NewParser()
 	parser.ParseBacktick = true
@@ -438,6 +621,21 @@ func TestParseWithEnvs(t *testing.T) {
 			line:     "cmd --args=A=B -A=B",
 			wantEnvs: []string{},
 			wantArgs: []string{"cmd", "--args=A=B", "-A=B"},
+		},
+		{
+			line:     "FOO=a=b cmd",
+			wantEnvs: []string{"FOO=a=b"},
+			wantArgs: []string{"cmd"},
+		},
+		{
+			line:     "LS_COLORS=di=34:ln=35 ls",
+			wantEnvs: []string{"LS_COLORS=di=34:ln=35"},
+			wantArgs: []string{"ls"},
+		},
+		{
+			line:     "=x 1a=b cmd",
+			wantEnvs: []string{},
+			wantArgs: []string{"=x", "1a=b", "cmd"},
 		},
 	}
 	for _, tt := range tests {
