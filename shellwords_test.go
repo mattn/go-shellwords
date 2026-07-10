@@ -596,6 +596,21 @@ func TestParseWithEnvs(t *testing.T) {
 			wantEnvs: []string{},
 			wantArgs: []string{"cmd", "--args=A=B", "-A=B"},
 		},
+		{
+			line:     "FOO=a=b cmd",
+			wantEnvs: []string{"FOO=a=b"},
+			wantArgs: []string{"cmd"},
+		},
+		{
+			line:     "LS_COLORS=di=34:ln=35 ls",
+			wantEnvs: []string{"LS_COLORS=di=34:ln=35"},
+			wantArgs: []string{"ls"},
+		},
+		{
+			line:     "=x 1a=b cmd",
+			wantEnvs: []string{},
+			wantArgs: []string{"=x", "1a=b", "cmd"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.line, func(t *testing.T) {

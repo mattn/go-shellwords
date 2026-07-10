@@ -363,7 +363,18 @@ func (p *Parser) ParseWithEnvs(line string) (envs []string, args []string, err e
 }
 
 func isEnv(arg string) bool {
-	return len(strings.Split(arg, "=")) == 2
+	i := strings.IndexByte(arg, '=')
+	if i <= 0 {
+		return false
+	}
+	for j := 0; j < i; j++ {
+		c := arg[j]
+		if c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || (j > 0 && '0' <= c && c <= '9') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func Parse(line string) ([]string, error) {
