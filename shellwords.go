@@ -63,7 +63,7 @@ func replaceEnv(getenv func(string) string, s string) string {
 					return s
 				}
 				if i > p {
-					buf.WriteString(getenv(s[p:i]))
+					buf.WriteString(getenv(string(rs[p:i])))
 				}
 			} else {
 				p := i
@@ -81,10 +81,10 @@ func replaceEnv(getenv func(string) string, s string) string {
 					}
 				}
 				if i > p {
-					buf.WriteString(getenv(s[p:i]))
+					buf.WriteString(getenv(string(rs[p:i])))
 					i--
 				} else {
-					buf.WriteString(s[p:])
+					buf.WriteString(string(rs[p:]))
 				}
 			}
 		} else {
