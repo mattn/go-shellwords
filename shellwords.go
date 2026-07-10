@@ -138,7 +138,7 @@ func (p *Parser) isExcluded(r rune) bool {
 	return false
 }
 
-// SetExcludeSeparators indictes the parser to ignore provided separators when parsing
+// SetExcludeSeparators indicates the parser to ignore provided separators when parsing
 // example: parser.SetExcludeSeparators(';','\t')
 func (p *Parser) SetExcludeSeparators(r ...rune) {
 	p.excludedSep = r
@@ -220,7 +220,7 @@ loop:
 				if backQuote || dollarQuote {
 					backtick += string(r)
 				}
-			} else if got != argNo {
+			} else if got == argQuoted || (got != argNo && buf != "") {
 				if p.ParseEnv {
 					if got == argSingle {
 						parser := &Parser{ParseEnv: false, ParseBacktick: false, Position: 0, Dir: p.Dir}
@@ -350,7 +350,7 @@ loop:
 				break loop
 			}
 		case '#':
-			if p.ParseComment && len(buf) == 0 && !(escaped || singleQuoted || doubleQuoted) {
+			if p.ParseComment && len(buf) == 0 && !(escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote) {
 				comment = true
 				continue loop
 			}
@@ -363,7 +363,7 @@ loop:
 		}
 	}
 
-	if got != argNo {
+	if got == argQuoted || (got != argNo && buf != "") {
 		if p.ParseEnv {
 			if got == argSingle {
 				parser := &Parser{ParseEnv: false, ParseBacktick: false, Position: 0, Dir: p.Dir}
