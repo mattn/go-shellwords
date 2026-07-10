@@ -361,6 +361,20 @@ func TestEnvBareDollar(t *testing.T) {
 	}
 }
 
+func TestEnvEscapedDollar(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+	parser.Getenv = func(k string) string { return map[string]string{"FOO": "bar"}[k] }
+	args, err := parser.Parse(`echo \$FOO "\$FOO" $FOO`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "$FOO", "$FOO", "bar"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
 func TestNoEnv(t *testing.T) {
 	parser := NewParser()
 	parser.ParseEnv = true

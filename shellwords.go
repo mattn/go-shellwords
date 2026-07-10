@@ -144,6 +144,13 @@ loop:
 				got = argSingle
 				continue
 			}
+			if p.ParseEnv && r == '$' {
+				// Keep the backslash so replaceEnv treats the '$' as
+				// literal instead of expanding it.
+				buf += `\$`
+				got = argSingle
+				continue
+			}
 			if r == 't' {
 				r = '\t'
 			}
@@ -254,7 +261,7 @@ loop:
 
 		case '(':
 			if !singleQuoted && !doubleQuoted && !backQuote {
-				if !dollarQuote && strings.HasSuffix(buf, "$") {
+				if !dollarQuote && strings.HasSuffix(buf, "$") && !strings.HasSuffix(buf, `\$`) {
 					dollarQuote = true
 					buf += "("
 					continue
