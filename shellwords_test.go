@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"runtime"
 	"testing"
 )
 
@@ -164,6 +165,41 @@ func TestBacktick(t *testing.T) {
 		t.Fatal(err)
 	}
 	expected = []string{"echo", "$(`echo1)"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+}
+
+func TestBacktickQuoted(t *testing.T) {
+	parser := NewParser()
+
+	args, err := parser.Parse("echo `echo \"foo  bar\"`")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"echo", "`echo \"foo  bar\"`"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	if runtime.GOOS == "windows" {
+		t.Skip("cmd.exe does not strip quotes")
+	}
+
+	parser.ParseBacktick = true
+	args, err = parser.Parse("echo `echo \"foo  bar\"`")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected = []string{"echo", "foo  bar"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	args, err = parser.Parse("echo `echo 'foo  bar'`")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !reflect.DeepEqual(args, expected) {
 		t.Fatalf("Expected %#v, but %#v:", expected, args)
 	}

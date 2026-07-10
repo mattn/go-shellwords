@@ -256,7 +256,7 @@ loop:
 			}
 
 		case '"':
-			if !singleQuoted && !dollarQuote {
+			if !singleQuoted && !dollarQuote && !backQuote {
 				if doubleQuoted {
 					got = argQuoted
 				}
@@ -265,7 +265,7 @@ loop:
 			}
 
 		case '\'':
-			if !doubleQuoted && !dollarQuote {
+			if !doubleQuoted && !dollarQuote && !backQuote {
 				if singleQuoted {
 					got = argQuoted
 				}
