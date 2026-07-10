@@ -161,7 +161,9 @@ loop:
 		if isSpace(r) {
 			if singleQuoted || doubleQuoted || backQuote || dollarQuote {
 				buf += string(r)
-				backtick += string(r)
+				if backQuote || dollarQuote {
+					backtick += string(r)
+				}
 			} else if got != argNo {
 				if p.ParseEnv {
 					if got == argSingle {
