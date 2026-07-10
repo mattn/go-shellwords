@@ -137,6 +137,13 @@ loop:
 	for _, r := range line {
 		i++
 		if escaped {
+			escaped = false
+			if backQuote || dollarQuote {
+				buf += "\\" + string(r)
+				backtick += "\\" + string(r)
+				got = argSingle
+				continue
+			}
 			if r == 't' {
 				r = '\t'
 			}
@@ -144,7 +151,6 @@ loop:
 				r = '\n'
 			}
 			buf += string(r)
-			escaped = false
 			got = argSingle
 			continue
 		}
