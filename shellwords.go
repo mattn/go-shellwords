@@ -84,7 +84,8 @@ func replaceEnv(getenv func(string) string, s string) string {
 					buf.WriteString(getenv(string(rs[p:i])))
 					i--
 				} else {
-					buf.WriteString(string(rs[p:]))
+					buf.WriteRune('$')
+					i--
 				}
 			}
 		} else {
