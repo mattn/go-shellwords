@@ -752,3 +752,31 @@ func TestSubShellEnv(t *testing.T) {
 		}
 	})
 }
+
+func TestLiteralParens(t *testing.T) {
+	// Mid-token parentheses appear in real CLI flags (issue #54).
+	args, err := Parse(`cmd --x=foo(1,2)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(args, []string{"cmd", "--x=foo(1,2)"}) {
+		t.Fatalf("got %#v", args)
+	}
+
+	args, err = Parse(`--providers.docker.constraints=Label('a.label.name','foo')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{`--providers.docker.constraints=Label(a.label.name,foo)`}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("got %#v want %#v", args, want)
+	}
+
+	// Token-leading parentheses remain invalid.
+	if _, err := Parse(`echo (hello)`); err == nil {
+		t.Fatal("expected error for token-leading '('")
+	}
+	if _, err := Parse(`)a`); err == nil {
+		t.Fatal("expected error for token-leading ')'")
+	}
+}

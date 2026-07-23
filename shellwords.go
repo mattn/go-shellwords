@@ -300,18 +300,19 @@ loop:
 					continue
 				}
 
-				// Backtick parsing disabled:
-				// A bare ')' is a syntax error, consistent with '(' handling.
-				// Only close an already-open $(...) region.
-				if !dollarQuote {
+				// Backtick parsing disabled: close an open $(...) region.
+				if dollarQuote {
+					buf = append(buf, ')')
+					backtick = backtick[:0]
+					dollarQuote = false
+					got = argSingle
+					continue
+				}
+				// A bare ')' that starts a token is still a syntax error.
+				// Mid-token ')' is allowed so CLI flags like foo(1,2) parse.
+				if len(buf) == 0 {
 					return nil, errInvalidCmdLine
 				}
-
-				buf = append(buf, ')')
-				backtick = backtick[:0]
-				dollarQuote = false
-				got = argSingle
-				continue
 			}
 
 		case '(':
@@ -320,7 +321,9 @@ loop:
 					dollarQuote = true
 					buf = append(buf, '(')
 					continue
-				} else {
+				}
+				// '(' that starts a token is a syntax error; mid-token is literal.
+				if len(buf) == 0 {
 					return nil, errInvalidCmdLine
 				}
 			}
