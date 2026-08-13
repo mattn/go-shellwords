@@ -159,6 +159,8 @@ func (p *Parser) Parse(line string) ([]string, error) {
 
 	pos := -1
 	got := argNo
+	// Whether the pending token contains any quoted or escaped character.
+	tokenQuoted := false
 
 	flush := func() error {
 		if got == argQuoted || (got != argNo && len(buf) > 0) {
@@ -180,6 +182,7 @@ func (p *Parser) Parse(line string) ([]string, error) {
 		}
 		buf = buf[:0]
 		got = argNo
+		tokenQuoted = false
 		return nil
 	}
 
@@ -191,12 +194,14 @@ loop:
 		if comment {
 			if r == '\n' {
 				comment = false
+				tokenQuoted = false
 			}
 			continue
 		}
 
 		if escaped {
 			escaped = false
+			tokenQuoted = true
 			if backQuote || dollarQuote {
 				buf = append(buf, '\\')
 				buf = append(buf, string(r)...)
@@ -331,6 +336,7 @@ loop:
 					got = argQuoted
 				}
 				doubleQuoted = !doubleQuoted
+				tokenQuoted = true
 				continue
 			}
 
@@ -340,12 +346,15 @@ loop:
 					got = argQuoted
 				}
 				singleQuoted = !singleQuoted
+				tokenQuoted = true
 				continue
 			}
 
 		case ';', '&', '|', '<', '>':
 			if !(escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote) {
-				if r == '>' && len(buf) > 0 {
+				// A file descriptor number is only a redirect prefix while it
+				// is unquoted; quoting makes it an ordinary argument.
+				if r == '>' && len(buf) > 0 && !tokenQuoted {
 					isDigits := true
 					for _, c := range buf {
 						if c < '0' || c > '9' {
