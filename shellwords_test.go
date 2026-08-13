@@ -609,6 +609,72 @@ func TestHaveRedirectPrefix(t *testing.T) {
 	}
 }
 
+func TestHaveQuotedRedirectPrefix(t *testing.T) {
+	tests := []struct {
+		line         string
+		parseComment bool
+		wantArgs     []string
+		wantRest     string
+	}{
+		{
+			line:     `cmd "10">file`,
+			wantArgs: []string{"cmd", "10"},
+			wantRest: ">file",
+		},
+		{
+			line:     `cmd '10'>file`,
+			wantArgs: []string{"cmd", "10"},
+			wantRest: ">file",
+		},
+		{
+			line:     `cmd 1\0>file`,
+			wantArgs: []string{"cmd", "10"},
+			wantRest: ">file",
+		},
+		{
+			line:     `cmd 2"">file`,
+			wantArgs: []string{"cmd", "2"},
+			wantRest: ">file",
+		},
+		{
+			line:     `cmd ""2>file`,
+			wantArgs: []string{"cmd", "2"},
+			wantRest: ">file",
+		},
+		{
+			// Quoting earlier in the line must not disarm a later descriptor.
+			line:     `cmd "x" 2>file`,
+			wantArgs: []string{"cmd", "x"},
+			wantRest: "2>file",
+		},
+		{
+			// A comment ends the line without flushing, so the quoting before
+			// it must not carry over to the next line's descriptor.
+			line:         "cmd \"\"#comment\n2>file",
+			parseComment: true,
+			wantArgs:     []string{"cmd"},
+			wantRest:     "2>file",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			parser := NewParser()
+			parser.ParseComment = tt.parseComment
+			args, err := parser.Parse(tt.line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(args, tt.wantArgs) {
+				t.Errorf("Expected %#v, but %#v", tt.wantArgs, args)
+			}
+			if rest := tt.line[parser.Position:]; rest != tt.wantRest {
+				t.Errorf("Expected %q, but %q", tt.wantRest, rest)
+			}
+		})
+	}
+}
+
 func TestBackquoteInFlag(t *testing.T) {
 	parser := NewParser()
 	parser.ParseBacktick = true
