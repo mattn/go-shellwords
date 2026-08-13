@@ -609,6 +609,74 @@ func TestHaveRedirectPrefix(t *testing.T) {
 	}
 }
 
+func TestHaveQuotedRedirectPrefix(t *testing.T) {
+	tests := []struct {
+		line         string
+		parseComment bool
+		wantArgs     []string
+		wantRest     string
+	}{
+		{
+			line:     `cmd "10">file`,
+			wantArgs: []string{"cmd", "10"},
+			wantRest: ">file",
+		},
+		{
+			line:     `cmd '10'>file`,
+			wantArgs: []string{"cmd", "10"},
+			wantRest: ">file",
+		},
+		{
+			line:     `cmd 1\0>file`,
+			wantArgs: []string{"cmd", "10"},
+			wantRest: ">file",
+		},
+		{
+			line:     `cmd 2"">file`,
+			wantArgs: []string{"cmd", "2"},
+			wantRest: ">file",
+		},
+		{
+			line:     `cmd ""2>file`,
+			wantArgs: []string{"cmd", "2"},
+			wantRest: ">file",
+		},
+		{
+			// Quoting earlier in the line must not disarm a later descriptor.
+			line:     `cmd "x" 2>file`,
+			wantArgs: []string{"cmd", "x"},
+			wantRest: "2>file",
+		},
+		{
+			// Since #77 a '#' after empty quotes is word content, not a comment
+			// start, so this yields the "#comment" argument. It still exercises
+			// the token boundary: tokenQuoted must be cleared before the 2> on
+			// the next line, or that descriptor would be misread as quoted.
+			line:         "cmd \"\"#comment\n2>file",
+			parseComment: true,
+			wantArgs:     []string{"cmd", "#comment"},
+			wantRest:     "2>file",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			parser := NewParser()
+			parser.ParseComment = tt.parseComment
+			args, err := parser.Parse(tt.line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(args, tt.wantArgs) {
+				t.Errorf("Expected %#v, but %#v", tt.wantArgs, args)
+			}
+			if rest := tt.line[parser.Position:]; rest != tt.wantRest {
+				t.Errorf("Expected %q, but %q", tt.wantRest, rest)
+			}
+		})
+	}
+}
+
 func TestBackquoteInFlag(t *testing.T) {
 	parser := NewParser()
 	parser.ParseBacktick = true
