@@ -752,3 +752,26 @@ func TestSubShellEnv(t *testing.T) {
 		}
 	})
 }
+
+func TestCommentAfterEmptyQuotedWord(t *testing.T) {
+	parser := NewParser()
+	parser.ParseComment = true
+	for _, tc := range []struct {
+		line string
+		want []string
+	}{
+		{`echo ''#literal`, []string{"echo", "#literal"}},
+		{`echo ""#literal`, []string{"echo", "#literal"}},
+		{`echo ''#literal # comment`, []string{"echo", "#literal"}},
+		{`echo '' # comment`, []string{"echo", ""}},
+		{`echo # comment`, []string{"echo"}},
+	} {
+		got, err := parser.Parse(tc.line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("Parse(%q) = %q, want %q", tc.line, got, tc.want)
+		}
+	}
+}
