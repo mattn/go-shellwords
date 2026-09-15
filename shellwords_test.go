@@ -42,6 +42,8 @@ var testcases = []testcase{
 	{`foo \\`, []string{`foo`, `\`}},
 	{`foo \& bar`, []string{`foo`, `&`, `bar`}},
 	{`sh -c "printf 'Hello\tworld\n'"`, []string{`sh`, `-c`, "printf 'Hello\tworld\n'"}},
+	{`upx c:\github.com\jftuga\test\test.exe`, []string{`upx`, `c:\github.com\jftuga\test\test.exe`}},
+	{`foo\ bar`, []string{`foo bar`}},
 }
 
 func TestSimple(t *testing.T) {

@@ -24,6 +24,18 @@ func isSpace(r rune) bool {
 	return false
 }
 
+// isUnquotedEscapeTarget reports whether a backslash in an unquoted
+// token should swallow the following rune. Letters are left alone so
+// Windows paths like c:\github.com\jftuga\test keep their separators
+// (#38). Quoted strings still treat \t / \n as control characters.
+func isUnquotedEscapeTarget(r rune) bool {
+	switch r {
+	case ' ', '\t', '\r', '\n', '\'', '"', '\\', '$', '`', '&', '|', ';', '<', '>', '(', ')', '#', '*', '?', '[', ']', '~':
+		return true
+	}
+	return false
+}
+
 func replaceEnv(getenv func(string) string, s string) string {
 	if getenv == nil {
 		getenv = os.Getenv
@@ -183,10 +195,11 @@ func (p *Parser) Parse(line string) ([]string, error) {
 		return nil
 	}
 
+	rs := []rune(line)
 	i := -1
 loop:
-	for _, r := range line {
-		i++
+	for idx, r := range rs {
+		i = idx
 
 		if comment {
 			if r == '\n' {
@@ -226,9 +239,18 @@ loop:
 		if r == '\\' {
 			if singleQuoted {
 				buf = append(buf, '\\')
-			} else {
-				escaped = true
+				continue
 			}
+			// Unquoted: only escape shell metacharacters. A backslash
+			// before a letter is a path separator (c:\test), not \t.
+			if !doubleQuoted && !backQuote && !dollarQuote {
+				if idx+1 < len(rs) && !isUnquotedEscapeTarget(rs[idx+1]) {
+					buf = append(buf, '\\')
+					got = argSingle
+					continue
+				}
+			}
+			escaped = true
 			continue
 		}
 
