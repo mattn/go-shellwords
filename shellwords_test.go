@@ -8,6 +8,7 @@ import (
 	"path"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -669,6 +670,57 @@ func TestHaveQuotedRedirectPrefix(t *testing.T) {
 			}
 			if !reflect.DeepEqual(args, tt.wantArgs) {
 				t.Errorf("Expected %#v, but %#v", tt.wantArgs, args)
+			}
+			if rest := tt.line[parser.Position:]; rest != tt.wantRest {
+				t.Errorf("Expected %q, but %q", tt.wantRest, rest)
+			}
+		})
+	}
+}
+
+func TestHaveSubstitutedRedirectPrefix(t *testing.T) {
+	tests := []struct {
+		line     string
+		wantArgs []string
+		wantRest string
+	}{
+		{
+			line:     "cmd $(printf 2)>file",
+			wantArgs: []string{"cmd", "2"},
+			wantRest: ">file",
+		},
+		{
+			line:     "cmd `printf 2`>file",
+			wantArgs: []string{"cmd", "2"},
+			wantRest: ">file",
+		},
+		{
+			// Output longer than the line must not rewind Position below zero.
+			line:     "cmd $(printf %040d 0)>file",
+			wantArgs: []string{"cmd", strings.Repeat("0", 40)},
+			wantRest: ">file",
+		},
+		{
+			// A substitution earlier in the line must not disarm a later descriptor.
+			line:     "cmd $(printf x) 2>file",
+			wantArgs: []string{"cmd", "x"},
+			wantRest: "2>file",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			parser := NewParser()
+			parser.ParseBacktick = true
+			args, err := parser.Parse(tt.line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(args, tt.wantArgs) {
+				t.Errorf("Expected %#v, but %#v", tt.wantArgs, args)
+			}
+			if parser.Position < 0 || parser.Position > len(tt.line) {
+				t.Fatalf("Position out of range: %d", parser.Position)
 			}
 			if rest := tt.line[parser.Position:]; rest != tt.wantRest {
 				t.Errorf("Expected %q, but %q", tt.wantRest, rest)

@@ -161,6 +161,8 @@ func (p *Parser) Parse(line string) ([]string, error) {
 	got := argNo
 	// Whether the pending token contains any quoted or escaped character.
 	tokenQuoted := false
+	// Whether the pending token contains output of a command substitution.
+	substituted := false
 
 	flush := func() error {
 		if got == argQuoted || (got != argNo && len(buf) > 0) {
@@ -183,6 +185,7 @@ func (p *Parser) Parse(line string) ([]string, error) {
 		buf = buf[:0]
 		got = argNo
 		tokenQuoted = false
+		substituted = false
 		return nil
 	}
 
@@ -272,6 +275,7 @@ loop:
 							return nil, err
 						}
 						buf = append(buf[:len(buf)-len(backtick)], out...)
+						substituted = true
 					}
 					backtick = backtick[:0]
 					backQuote = !backQuote
@@ -304,6 +308,7 @@ loop:
 					}
 
 					buf = append(buf[:len(buf)-len(backtick)-2], out...)
+					substituted = true
 					backtick = backtick[:0]
 					dollarQuote = false
 					continue
@@ -357,8 +362,10 @@ loop:
 		case ';', '&', '|', '<', '>':
 			if !(escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote) {
 				// A file descriptor number is only a redirect prefix while it
-				// is unquoted; quoting makes it an ordinary argument.
-				if r == '>' && len(buf) > 0 && !tokenQuoted {
+				// is unquoted; quoting makes it an ordinary argument. Output of
+				// a command substitution is never one either, and its length
+				// does not match the source text.
+				if r == '>' && len(buf) > 0 && !tokenQuoted && !substituted {
 					isDigits := true
 					for _, c := range buf {
 						if c < '0' || c > '9' {
