@@ -451,6 +451,52 @@ func TestEnvEscapedDollar(t *testing.T) {
 	}
 }
 
+func TestEnvQuoteBoundaries(t *testing.T) {
+	tests := []struct {
+		line  string
+		value string
+		want  []string
+	}{
+		{`'$FOO'`, "bar", []string{"$FOO"}},
+		{`'${FOO}'`, "bar", []string{"${FOO}"}},
+		{`'a\b'`, "bar", []string{`a\b`}},
+		{`$FOO"x"`, "bar", []string{"barx"}},
+		{`"$FOO"x`, "bar", []string{"barx"}},
+		{`$FOO'x'`, "bar", []string{"barx"}},
+		{`'$FOO'"$FOO"`, "bar", []string{"$FOObar"}},
+		{`"'$FOO'"`, "bar", []string{"'bar'"}},
+		{`$FOO"x"`, "bar baz", []string{"bar", "bazx"}},
+		{`"$FOO"x`, "bar baz", []string{"bar bazx"}},
+		{`'a b'$FOO`, "bar baz", []string{"a bbar", "baz"}},
+		{`"a"$FOO`, " bar ", []string{"a", "bar"}},
+		{`$FOO"x"`, " bar ", []string{"bar", "x"}},
+		{`"a"$FOO"b"`, " ", []string{"a", "b"}},
+		{`"$FOO"x`, `a"b\c`, []string{`a"b\cx`}},
+		{`"$FOO"x`, "", []string{"x"}},
+		{`$FOO""`, "", []string{""}},
+		{`'$FOO' $FOO`, "bar", []string{"$FOO", "bar"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line+"/"+tt.value, func(t *testing.T) {
+			parser := NewParser()
+			parser.ParseEnv = true
+			parser.Getenv = func(key string) string {
+				if key == "FOO" {
+					return tt.value
+				}
+				return ""
+			}
+			args, err := parser.Parse(tt.line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(args, tt.want) {
+				t.Fatalf("Expected %#v, but %#v", tt.want, args)
+			}
+		})
+	}
+}
+
 func TestNoEnv(t *testing.T) {
 	parser := NewParser()
 	parser.ParseEnv = true

@@ -164,10 +164,59 @@ func (p *Parser) Parse(line string) ([]string, error) {
 	// Whether the pending token contains output of a command substitution.
 	substituted := false
 
+	type envPart struct {
+		value        string
+		quoted       bool
+		singleQuoted bool
+	}
+	var envParts []envPart
+	envStart := 0
+	// Keep quote boundaries until expansion, so adjacent text cannot become
+	// part of a variable name and single-quoted contents stay literal.
+	appendEnvPart := func() {
+		if p.ParseEnv {
+			if envStart < len(buf) || singleQuoted || doubleQuoted {
+				envParts = append(envParts, envPart{
+					value:        string(buf[envStart:]),
+					quoted:       singleQuoted || doubleQuoted,
+					singleQuoted: singleQuoted,
+				})
+			}
+			envStart = len(buf)
+		}
+	}
+
 	flush := func() error {
 		if got == argQuoted || (got != argNo && len(buf) > 0) {
 			token := string(buf)
-			if p.ParseEnv {
+			if p.ParseEnv && len(envParts) > 0 {
+				appendEnvPart()
+				var expanded strings.Builder
+				for _, part := range envParts {
+					value := part.value
+					if !part.singleQuoted {
+						value = replaceEnv(p.Getenv, value)
+					}
+					if part.quoted {
+						expanded.WriteByte('"')
+						for _, r := range value {
+							if r == '\\' || r == '"' {
+								expanded.WriteByte('\\')
+							}
+							expanded.WriteRune(r)
+						}
+						expanded.WriteByte('"')
+					} else {
+						expanded.WriteString(value)
+					}
+				}
+				parser := &Parser{ParseEnv: false, ParseBacktick: false, Position: 0, Dir: p.Dir}
+				strs, err := parser.Parse(expanded.String())
+				if err != nil {
+					return err
+				}
+				args = append(args, strs...)
+			} else if p.ParseEnv {
 				if got == argSingle {
 					parser := &Parser{ParseEnv: false, ParseBacktick: false, Position: 0, Dir: p.Dir}
 					strs, err := parser.Parse(replaceEnv(p.Getenv, token))
@@ -183,6 +232,8 @@ func (p *Parser) Parse(line string) ([]string, error) {
 			}
 		}
 		buf = buf[:0]
+		envParts = envParts[:0]
+		envStart = 0
 		got = argNo
 		tokenQuoted = false
 		substituted = false
@@ -341,6 +392,7 @@ loop:
 
 		case '"':
 			if !singleQuoted && !dollarQuote && !backQuote {
+				appendEnvPart()
 				if doubleQuoted {
 					got = argQuoted
 				}
@@ -351,6 +403,7 @@ loop:
 
 		case '\'':
 			if !doubleQuoted && !dollarQuote && !backQuote {
+				appendEnvPart()
 				if singleQuoted {
 					got = argQuoted
 				}
