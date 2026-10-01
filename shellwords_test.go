@@ -451,6 +451,229 @@ func TestEnvEscapedDollar(t *testing.T) {
 	}
 }
 
+func TestEnvQuoteBoundaries(t *testing.T) {
+	tests := []struct {
+		line  string
+		value string
+		want  []string
+	}{
+		{`'$FOO'`, "bar", []string{"$FOO"}},
+		{`'${FOO}'`, "bar", []string{"${FOO}"}},
+		{`'a\b'`, "bar", []string{`a\b`}},
+		{`$FOO"x"`, "bar", []string{"barx"}},
+		{`"$FOO"x`, "bar", []string{"barx"}},
+		{`$FOO'x'`, "bar", []string{"barx"}},
+		{`'$FOO'"$FOO"`, "bar", []string{"$FOObar"}},
+		{`"'$FOO'"`, "bar", []string{"'bar'"}},
+		{`$FOO"x"`, "bar baz", []string{"bar", "bazx"}},
+		{`"$FOO"x`, "bar baz", []string{"bar bazx"}},
+		{`'a b'$FOO`, "bar baz", []string{"a bbar", "baz"}},
+		{`"a"$FOO`, " bar ", []string{"a", "bar"}},
+		{`$FOO"x"`, " bar ", []string{"bar", "x"}},
+		{`"a"$FOO"b"`, " ", []string{"a", "b"}},
+		{`"$FOO"x`, `a"b\c`, []string{`a"b\cx`}},
+		{`"$FOO"x`, "", []string{"x"}},
+		{`$FOO""`, "", []string{""}},
+		{`'$FOO' $FOO`, "bar", []string{"$FOO", "bar"}},
+		{`a\ b"c"`, "", []string{"a bc"}},
+		{`\"x"y"`, "", []string{`"xy`}},
+		{`$FOO"x"`, `a"b`, []string{`a"bx`}},
+		{`$FOO"x"`, `a'b`, []string{`a'bx`}},
+		{`$FOO"x"`, `a\b`, []string{`a\bx`}},
+		{`$FOO"x"`, `a;b`, []string{`a;bx`}},
+		{`a\ b`, "", []string{"a b"}},
+		{`$FOO\ x`, "bar baz", []string{"bar", "baz x"}},
+		{`\$FOO"x"`, "bar", []string{"$FOOx"}},
+		{`$FOO"x"`, "a\tb\rc\nd", []string{"a", "b", "c", "dx"}},
+		{`\\$FOO`, "bar", []string{`\bar`}},
+		{`"a\\$FOO"`, "bar", []string{`a\bar`}},
+		{`""$FOO`, " bar", []string{"", "bar"}},
+		{`$FOO$FOO`, "a b", []string{"a", "ba", "b"}},
+		{`${FOO}x${FOO}`, " ", []string{"x"}},
+		{`"${FOO}"x`, "a b", []string{"a bx"}},
+		{`${FOO`, "bar", []string{"${FOO"}},
+		{`"${FOO"x`, "bar", []string{"${FOOx"}},
+		{`${FOO-x}`, "bar", []string{"${FOO-x}"}},
+		{`'$FOO'x`, "bar", []string{"$FOOx"}},
+		{`x'$FOO'`, "bar", []string{"x$FOO"}},
+		{`'${FOO}'"${FOO}"`, "bar", []string{"${FOO}bar"}},
+		{`"$FOO"'$FOO'`, "bar", []string{"bar$FOO"}},
+		{`"a'$FOO'b"`, "bar", []string{"a'bar'b"}},
+		{`'"$FOO"'`, "bar", []string{`"$FOO"`}},
+		{`${FOO}"x"`, "bar", []string{"barx"}},
+		{`"x"${FOO}`, "bar", []string{"xbar"}},
+		{`あ$FOO"い"`, "bar", []string{"あbarい"}},
+		{`$FOO'x'$FOO`, "a b", []string{"a", "bxa", "b"}},
+		{`"$FOO""$FOO"`, "a b", []string{"a ba b"}},
+		{`a\ b'c'`, "", []string{"a bc"}},
+		{`\'x'y'`, "", []string{"'xy"}},
+		{`a\\'b'`, "", []string{`a\b`}},
+		{`\$FOO'x'`, "bar", []string{"$FOOx"}},
+		{`\${FOO}`, "bar", []string{"${FOO}"}},
+		{`"\${FOO}"`, "bar", []string{"${FOO}"}},
+		{`\\\$FOO`, "bar", []string{`\$FOO`}},
+		{`$FOO'x'`, `a"b`, []string{`a"bx`}},
+		{`"$FOO"`, `a'b"c\d$e`, []string{`a'b"c\d$e`}},
+		{`$FOO`, `\$X`, []string{`\$X`}},
+		{`"$FOO"`, "$FOO", []string{"$FOO"}},
+		{`$FOO`, "${FOO}", []string{"${FOO}"}},
+		{`$FOO x`, "a;b", []string{"a;b", "x"}},
+		{`$FOO x`, "a|b&c<d>e", []string{"a|b&c<d>e", "x"}},
+		{`$FOO`, `a\tb`, []string{`a\tb`}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line+"/"+tt.value, func(t *testing.T) {
+			parser := NewParser()
+			parser.ParseEnv = true
+			parser.Getenv = func(key string) string {
+				if key == "FOO" {
+					return tt.value
+				}
+				return ""
+			}
+			args, err := parser.Parse(tt.line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(args, tt.want) {
+				t.Fatalf("Expected %#v, but %#v", tt.want, args)
+			}
+		})
+	}
+}
+
+func TestEnvSplitDoesNotStartComment(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+	parser.ParseComment = true
+	parser.Getenv = func(key string) string { return "a " }
+	tests := []struct {
+		line  string
+		value string
+		want  []string
+	}{
+		{"$FOO#x y # z", "a ", []string{"a", "#x", "y"}},
+		{"${FOO}#x", "a ", []string{"a", "#x"}},
+		{"$FOO#x", "", []string{"#x"}},
+		{`"$FOO"#x`, "a ", []string{"a #x"}},
+		{"$FOO #x", "a ", []string{"a"}},
+		{"$FOO #x", "", []string{}},
+		{"x $FOO\n# y\nz", "a", []string{"x", "a", "z"}},
+	}
+	for _, tt := range tests {
+		parser.Getenv = func(string) string { return tt.value }
+		args, err := parser.Parse(tt.line)
+		if err != nil {
+			t.Fatalf("Parse(%q) with FOO=%q: %v", tt.line, tt.value, err)
+		}
+		if !reflect.DeepEqual(args, tt.want) {
+			t.Fatalf("Parse(%q) with FOO=%q: expected %#v, but %#v", tt.line, tt.value, tt.want, args)
+		}
+	}
+}
+
+func TestEnvSeparatorPosition(t *testing.T) {
+	tests := []struct {
+		line  string
+		value string
+		want  []string
+		pos   int
+	}{
+		{"$FOO; b", "a b", []string{"a", "b"}, 4},
+		{`$FOO"x"; b`, "a b", []string{"a", "bx"}, 7},
+		{"${FOO}x| b", "あ い", []string{"あ", "いx"}, 7},
+		{"$FOO b", "a;c", []string{"a;c", "b"}, -1},
+		{"$FOO>f", "2", []string{"2"}, 4},
+		{"${FOO}2>f", "a ", []string{"a", "2"}, 7},
+		{"$FOO 2>f", "a", []string{"a"}, 5},
+	}
+	for _, tt := range tests {
+		parser := NewParser()
+		parser.ParseEnv = true
+		parser.Getenv = func(string) string { return tt.value }
+		args, err := parser.Parse(tt.line)
+		if err != nil {
+			t.Fatalf("Parse(%q) with FOO=%q: %v", tt.line, tt.value, err)
+		}
+		if !reflect.DeepEqual(args, tt.want) {
+			t.Fatalf("Parse(%q) with FOO=%q: expected %#v, but %#v", tt.line, tt.value, tt.want, args)
+		}
+		if parser.Position != tt.pos {
+			t.Fatalf("Parse(%q) with FOO=%q: expected position %d, but %d", tt.line, tt.value, tt.pos, parser.Position)
+		}
+	}
+}
+
+func TestQuotedDollarDoesNotStartSubstitution(t *testing.T) {
+	for _, env := range []bool{false, true} {
+		parser := NewParser()
+		parser.ParseEnv = env
+		parser.ParseBacktick = true
+		for _, line := range []string{
+			`\$(echo x)`, `'$'(echo x)`, `"$"(echo x)`,
+			`a\$(echo x)`, `a'$'(echo x)`, `"a$"(echo x)`, `\\\$(echo x)`, `$ (echo x)`,
+		} {
+			args, err := parser.Parse(line)
+			if err == nil {
+				t.Fatalf("Parse(%q) with ParseEnv=%v: expected an error, but %#v", line, env, args)
+			}
+		}
+	}
+}
+
+func TestEnvValueNotSubstituted(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+	parser.ParseBacktick = true
+	for _, value := range []string{"$(echo x)", "`echo x`", "a$(echo x)b"} {
+		for _, line := range []string{`$FOO`, `"$FOO"`, `$FOO""`} {
+			parser.Getenv = func(string) string { return value }
+			args, err := parser.Parse(line)
+			if err != nil {
+				t.Fatalf("Parse(%q) with FOO=%q: %v", line, value, err)
+			}
+			var want []string
+			if line == `"$FOO"` {
+				want = []string{value}
+			} else {
+				want = strings.Fields(value)
+			}
+			if !reflect.DeepEqual(args, want) {
+				t.Fatalf("Parse(%q) with FOO=%q: expected %#v, but %#v", line, value, want, args)
+			}
+		}
+	}
+}
+
+func TestEnvQuoteBoundariesExcludedSeparators(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+	parser.SetExcludeSeparators(';', '\t')
+	parser.Getenv = func(key string) string { return "a\tb;c" }
+	for _, line := range []string{"a\tb;c\"x\"", `$FOO"x"`} {
+		args, err := parser.Parse(line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"a\tb;cx"}
+		if !reflect.DeepEqual(args, want) {
+			t.Fatalf("Parse(%q): expected %#v, but %#v", line, want, args)
+		}
+	}
+
+	parser.Getenv = func(key string) string { return "a\tb c\nd" }
+	for _, line := range []string{`$FOO`, `${FOO}`, `$FOO""`} {
+		args, err := parser.Parse(line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"a\tb", "c", "d"}
+		if !reflect.DeepEqual(args, want) {
+			t.Fatalf("Parse(%q): expected %#v, but %#v", line, want, args)
+		}
+	}
+}
+
 func TestNoEnv(t *testing.T) {
 	parser := NewParser()
 	parser.ParseEnv = true
@@ -479,27 +702,31 @@ func TestEnvArguments(t *testing.T) {
 	}
 }
 
-func TestEnvArgumentsFail(t *testing.T) {
-	os.Setenv("FOO", "bar '")
-
+func TestEnvArgumentsNotReparsed(t *testing.T) {
 	parser := NewParser()
 	parser.ParseEnv = true
-	_, err := parser.Parse("echo $FOO")
-	if err == nil {
-		t.Fatal("Should be an error")
+	parser.ParseBacktick = true
+
+	tests := []struct {
+		line  string
+		value string
+		want  []string
+	}{
+		{"echo $FOO", "bar '", []string{"echo", "bar", "'"}},
+		{"$FOO ", "bar `", []string{"bar", "`"}},
+		{"$FOO", `"a b"`, []string{`"a`, `b"`}},
+		{"$FOO", "$(echo PWNED)", []string{"$(echo", "PWNED)"}},
+		{"$FOO", "a;b|c>d", []string{"a;b|c>d"}},
 	}
-	_, err = parser.Parse("$FOO")
-	if err == nil {
-		t.Fatal("Should be an error")
-	}
-	_, err = parser.Parse("echo $FOO")
-	if err == nil {
-		t.Fatal("Should be an error")
-	}
-	os.Setenv("FOO", "bar `")
-	result, err := parser.Parse("$FOO ")
-	if err == nil {
-		t.Fatal("Should be an error: ", result)
+	for _, tt := range tests {
+		parser.Getenv = func(string) string { return tt.value }
+		args, err := parser.Parse(tt.line)
+		if err != nil {
+			t.Fatalf("Parse(%q) with FOO=%q: %v", tt.line, tt.value, err)
+		}
+		if !reflect.DeepEqual(args, tt.want) {
+			t.Fatalf("Parse(%q) with FOO=%q: expected %#v, but %#v", tt.line, tt.value, tt.want, args)
+		}
 	}
 }
 
@@ -756,11 +983,20 @@ func TestEnvInQuoted(t *testing.T) {
 		t.Fatalf("Expected %#v, but %#v:", expected, args)
 	}
 
-	args, err = parser.Parse(`ssh 127.0.0.1 "echo \\$FOO"`)
+	args, err = parser.Parse(`ssh 127.0.0.1 "echo \$FOO"`)
 	if err != nil {
 		panic(err)
 	}
 	expected = []string{"ssh", "127.0.0.1", "echo $FOO"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	args, err = parser.Parse(`ssh 127.0.0.1 "echo \\$FOO"`)
+	if err != nil {
+		panic(err)
+	}
+	expected = []string{"ssh", "127.0.0.1", `echo \bar`}
 	if !reflect.DeepEqual(args, expected) {
 		t.Fatalf("Expected %#v, but %#v:", expected, args)
 	}
