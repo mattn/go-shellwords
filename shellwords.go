@@ -1,7 +1,6 @@
 package shellwords
 
 import (
-	"bytes"
 	"errors"
 	"os"
 	"strings"
@@ -24,78 +23,29 @@ func isSpace(r rune) bool {
 	return false
 }
 
-func replaceEnv(getenv func(string) string, s string) string {
-	if getenv == nil {
-		getenv = os.Getenv
-	}
+func isEnvNameRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+}
 
-	var buf bytes.Buffer
-	rs := []rune(s)
-	for i := 0; i < len(rs); i++ {
-		r := rs[i]
-		if r == '\\' {
-			i++
-			if i == len(rs) {
-				break
-			}
-			buf.WriteRune(rs[i])
-			continue
-		} else if r == '$' {
-			i++
-			if i == len(rs) {
-				buf.WriteRune(r)
-				break
-			}
-			if rs[i] == 0x7b {
-				i++
-				p := i
-				for ; i < len(rs); i++ {
-					r = rs[i]
-					if r == '\\' {
-						i++
-						if i == len(rs) {
-							return s
-						}
-						continue
-					}
-					if r == 0x7d || (!unicode.IsLetter(r) && r != '_' && !unicode.IsDigit(r)) {
-						break
-					}
-				}
-				if r != 0x7d {
-					return s
-				}
-				if i > p {
-					buf.WriteString(getenv(string(rs[p:i])))
-				}
-			} else {
-				p := i
-				for ; i < len(rs); i++ {
-					r := rs[i]
-					if r == '\\' {
-						i++
-						if i == len(rs) {
-							return s
-						}
-						continue
-					}
-					if !unicode.IsLetter(r) && r != '_' && !unicode.IsDigit(r) {
-						break
-					}
-				}
-				if i > p {
-					buf.WriteString(getenv(string(rs[p:i])))
-					i--
-				} else {
-					buf.WriteRune('$')
-					i--
-				}
-			}
-		} else {
-			buf.WriteRune(r)
+// parseEnvName parses the variable reference that follows a '$' at the start
+// of s, either NAME or {NAME}. It returns the name and the number of bytes
+// consumed, or ok == false if s does not start with a reference.
+func parseEnvName(s string) (name string, n int, ok bool) {
+	if strings.HasPrefix(s, "{") {
+		end := strings.IndexFunc(s[1:], func(r rune) bool { return !isEnvNameRune(r) })
+		if end < 0 || s[1+end] != '}' {
+			return "", 0, false
 		}
+		return s[1 : 1+end], end + 2, true
 	}
-	return buf.String()
+	end := strings.IndexFunc(s, func(r rune) bool { return !isEnvNameRune(r) })
+	if end < 0 {
+		end = len(s)
+	}
+	if end == 0 {
+		return "", 0, false
+	}
+	return s[:end], end, true
 }
 
 type Parser struct {
@@ -161,94 +111,40 @@ func (p *Parser) Parse(line string) ([]string, error) {
 	got := argNo
 	// Whether the pending token contains any quoted or escaped character.
 	tokenQuoted := false
-	// Whether the pending token contains output of a command substitution.
+	// Whether the pending token contains output of a command substitution
+	// or an environment variable expansion.
 	substituted := false
+	// Whether the previous character was an unquoted, unescaped '$'.
+	afterDollar := false
+	// Byte offset in line up to which characters were already consumed.
+	skip := 0
 
-	type envPart struct {
-		value   string
-		quoted  bool
-		literal bool
-	}
-	var envParts []envPart
-	envStart := 0
-	// Keep quote boundaries until expansion, so adjacent text cannot become
-	// part of a variable name and single-quoted contents stay literal.
-	appendEnvPart := func() {
-		if p.ParseEnv {
-			if envStart < len(buf) || singleQuoted || doubleQuoted {
-				envParts = append(envParts, envPart{
-					value:   string(buf[envStart:]),
-					quoted:  singleQuoted || doubleQuoted,
-					literal: singleQuoted,
-				})
-			}
-			envStart = len(buf)
-		}
+	getenv := p.Getenv
+	if getenv == nil {
+		getenv = os.Getenv
 	}
 
-	flush := func() error {
+	flush := func() {
 		if got == argQuoted || (got != argNo && len(buf) > 0) {
-			token := string(buf)
-			if p.ParseEnv && len(envParts) > 0 {
-				appendEnvPart()
-				var expanded strings.Builder
-				present := false
-				for _, part := range envParts {
-					value := part.value
-					if !part.literal {
-						value = replaceEnv(p.Getenv, value)
-					}
-					if part.quoted {
-						expanded.WriteString(value)
-						present = true
-						continue
-					}
-					// Split expanded words without interpreting their contents
-					// as shell syntax a second time.
-					for _, r := range value {
-						if isSpace(r) && !p.isExcluded(r) {
-							if present {
-								args = append(args, expanded.String())
-								expanded.Reset()
-								present = false
-							}
-						} else {
-							expanded.WriteRune(r)
-							present = true
-						}
-					}
-				}
-				if present {
-					args = append(args, expanded.String())
-				}
-			} else if p.ParseEnv {
-				if got == argSingle {
-					parser := &Parser{ParseEnv: false, ParseBacktick: false, Position: 0, Dir: p.Dir}
-					strs, err := parser.Parse(replaceEnv(p.Getenv, token))
-					if err != nil {
-						return err
-					}
-					args = append(args, strs...)
-				} else {
-					args = append(args, replaceEnv(p.Getenv, token))
-				}
-			} else {
-				args = append(args, token)
-			}
+			args = append(args, string(buf))
 		}
 		buf = buf[:0]
-		envParts = envParts[:0]
-		envStart = 0
 		got = argNo
 		tokenQuoted = false
 		substituted = false
-		return nil
 	}
 
 	i := -1
 loop:
-	for _, r := range line {
+	for idx, r := range line {
 		i++
+
+		if idx < skip {
+			continue
+		}
+
+		prevDollar := afterDollar
+		afterDollar = false
 
 		if comment {
 			if r == '\n' {
@@ -273,15 +169,6 @@ loop:
 				got = argSingle
 				continue
 			}
-			if p.ParseEnv && !doubleQuoted {
-				appendEnvPart()
-			} else if p.ParseEnv && r == '$' {
-				// Keep the backslash so replaceEnv treats the '$' as
-				// literal instead of expanding it.
-				buf = append(buf, '\\', '$')
-				got = argSingle
-				continue
-			}
 			if r == 't' {
 				r = '\t'
 			}
@@ -289,10 +176,6 @@ loop:
 				r = '\n'
 			}
 			buf = append(buf, string(r)...)
-			if p.ParseEnv && !doubleQuoted {
-				envParts = append(envParts, envPart{value: string(r), quoted: true, literal: true})
-				envStart = len(buf)
-			}
 			got = argSingle
 			continue
 		}
@@ -321,8 +204,8 @@ loop:
 				if backQuote || dollarQuote {
 					backtick = append(backtick, byte(r))
 				}
-			} else if err := flush(); err != nil {
-				return nil, err
+			} else {
+				flush()
 			}
 			continue
 		}
@@ -392,7 +275,7 @@ loop:
 
 		case '(':
 			if !singleQuoted && !doubleQuoted && !backQuote {
-				if n := len(buf); !dollarQuote && n > 0 && buf[n-1] == '$' && !(n > 1 && buf[n-2] == '\\') {
+				if !dollarQuote && prevDollar {
 					dollarQuote = true
 					buf = append(buf, '(')
 					continue
@@ -403,7 +286,6 @@ loop:
 
 		case '"':
 			if !singleQuoted && !dollarQuote && !backQuote {
-				appendEnvPart()
 				if doubleQuoted {
 					got = argQuoted
 				}
@@ -414,7 +296,6 @@ loop:
 
 		case '\'':
 			if !doubleQuoted && !dollarQuote && !backQuote {
-				appendEnvPart()
 				if singleQuoted {
 					got = argQuoted
 				}
@@ -445,8 +326,34 @@ loop:
 				pos = i
 				break loop
 			}
+		case '$':
+			if p.ParseEnv && !singleQuoted && !backQuote && !dollarQuote {
+				name, n, ok := parseEnvName(line[idx+1:])
+				if !ok {
+					break
+				}
+				skip = idx + 1 + n
+				value := getenv(name)
+				if doubleQuoted {
+					buf = append(buf, value...)
+				} else {
+					// Split the value into fields, but never interpret its
+					// contents as shell syntax.
+					for _, c := range value {
+						if isSpace(c) && !p.isExcluded(c) {
+							flush()
+							continue
+						}
+						buf = append(buf, string(c)...)
+						got = argSingle
+					}
+				}
+				substituted = true
+				continue
+			}
+
 		case '#':
-			if p.ParseComment && got == argNo && !(escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote) {
+			if p.ParseComment && got == argNo && !substituted && !(escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote) {
 				comment = true
 				continue loop
 			}
@@ -457,11 +364,10 @@ loop:
 		if backQuote || dollarQuote {
 			backtick = append(backtick, string(r)...)
 		}
+		afterDollar = r == '$' && !(singleQuoted || doubleQuoted || backQuote || dollarQuote)
 	}
 
-	if err := flush(); err != nil {
-		return nil, err
-	}
+	flush()
 
 	if escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote {
 		return nil, errInvalidCmdLine

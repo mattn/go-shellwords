@@ -485,6 +485,11 @@ func TestEnvQuoteBoundaries(t *testing.T) {
 		{`$FOO\ x`, "bar baz", []string{"bar", "baz x"}},
 		{`\$FOO"x"`, "bar", []string{"$FOOx"}},
 		{`$FOO"x"`, "a\tb\rc\nd", []string{"a", "b", "c", "dx"}},
+		{`\\$FOO`, "bar", []string{`\bar`}},
+		{`"a\\$FOO"`, "bar", []string{`a\bar`}},
+		{`""$FOO`, " bar", []string{"", "bar"}},
+		{`$FOO$FOO`, "a b", []string{"a", "ba", "b"}},
+		{`${FOO}x${FOO}`, " ", []string{"x"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.line+"/"+tt.value, func(t *testing.T) {
@@ -504,6 +509,35 @@ func TestEnvQuoteBoundaries(t *testing.T) {
 				t.Fatalf("Expected %#v, but %#v", tt.want, args)
 			}
 		})
+	}
+}
+
+func TestEnvSplitDoesNotStartComment(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+	parser.ParseComment = true
+	parser.Getenv = func(key string) string { return "a " }
+	args, err := parser.Parse("$FOO#x y # z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"a", "#x", "y"}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("Expected %#v, but %#v", want, args)
+	}
+}
+
+func TestQuotedDollarDoesNotStartSubstitution(t *testing.T) {
+	for _, env := range []bool{false, true} {
+		parser := NewParser()
+		parser.ParseEnv = env
+		parser.ParseBacktick = true
+		for _, line := range []string{`\$(echo x)`, `'$'(echo x)`, `"$"(echo x)`} {
+			args, err := parser.Parse(line)
+			if err == nil {
+				t.Fatalf("Parse(%q) with ParseEnv=%v: expected an error, but %#v", line, env, args)
+			}
+		}
 	}
 }
 
@@ -552,27 +586,31 @@ func TestEnvArguments(t *testing.T) {
 	}
 }
 
-func TestEnvArgumentsFail(t *testing.T) {
-	os.Setenv("FOO", "bar '")
-
+func TestEnvArgumentsNotReparsed(t *testing.T) {
 	parser := NewParser()
 	parser.ParseEnv = true
-	_, err := parser.Parse("echo $FOO")
-	if err == nil {
-		t.Fatal("Should be an error")
+	parser.ParseBacktick = true
+
+	tests := []struct {
+		line  string
+		value string
+		want  []string
+	}{
+		{"echo $FOO", "bar '", []string{"echo", "bar", "'"}},
+		{"$FOO ", "bar `", []string{"bar", "`"}},
+		{"$FOO", `"a b"`, []string{`"a`, `b"`}},
+		{"$FOO", "$(echo PWNED)", []string{"$(echo", "PWNED)"}},
+		{"$FOO", "a;b|c>d", []string{"a;b|c>d"}},
 	}
-	_, err = parser.Parse("$FOO")
-	if err == nil {
-		t.Fatal("Should be an error")
-	}
-	_, err = parser.Parse("echo $FOO")
-	if err == nil {
-		t.Fatal("Should be an error")
-	}
-	os.Setenv("FOO", "bar `")
-	result, err := parser.Parse("$FOO ")
-	if err == nil {
-		t.Fatal("Should be an error: ", result)
+	for _, tt := range tests {
+		parser.Getenv = func(string) string { return tt.value }
+		args, err := parser.Parse(tt.line)
+		if err != nil {
+			t.Fatalf("Parse(%q) with FOO=%q: %v", tt.line, tt.value, err)
+		}
+		if !reflect.DeepEqual(args, tt.want) {
+			t.Fatalf("Parse(%q) with FOO=%q: expected %#v, but %#v", tt.line, tt.value, tt.want, args)
+		}
 	}
 }
 
@@ -829,11 +867,20 @@ func TestEnvInQuoted(t *testing.T) {
 		t.Fatalf("Expected %#v, but %#v:", expected, args)
 	}
 
-	args, err = parser.Parse(`ssh 127.0.0.1 "echo \\$FOO"`)
+	args, err = parser.Parse(`ssh 127.0.0.1 "echo \$FOO"`)
 	if err != nil {
 		panic(err)
 	}
 	expected = []string{"ssh", "127.0.0.1", "echo $FOO"}
+	if !reflect.DeepEqual(args, expected) {
+		t.Fatalf("Expected %#v, but %#v:", expected, args)
+	}
+
+	args, err = parser.Parse(`ssh 127.0.0.1 "echo \\$FOO"`)
+	if err != nil {
+		panic(err)
+	}
+	expected = []string{"ssh", "127.0.0.1", `echo \bar`}
 	if !reflect.DeepEqual(args, expected) {
 		t.Fatalf("Expected %#v, but %#v:", expected, args)
 	}
