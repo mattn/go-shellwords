@@ -475,6 +475,16 @@ func TestEnvQuoteBoundaries(t *testing.T) {
 		{`"$FOO"x`, "", []string{"x"}},
 		{`$FOO""`, "", []string{""}},
 		{`'$FOO' $FOO`, "bar", []string{"$FOO", "bar"}},
+		{`a\ b"c"`, "", []string{"a bc"}},
+		{`\"x"y"`, "", []string{`"xy`}},
+		{`$FOO"x"`, `a"b`, []string{`a"bx`}},
+		{`$FOO"x"`, `a'b`, []string{`a'bx`}},
+		{`$FOO"x"`, `a\b`, []string{`a\bx`}},
+		{`$FOO"x"`, `a;b`, []string{`a;bx`}},
+		{`a\ b`, "", []string{"a b"}},
+		{`$FOO\ x`, "bar baz", []string{"bar", "baz x"}},
+		{`\$FOO"x"`, "bar", []string{"$FOOx"}},
+		{`$FOO"x"`, "a\tb\rc\nd", []string{"a", "b", "c", "dx"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.line+"/"+tt.value, func(t *testing.T) {
@@ -494,6 +504,23 @@ func TestEnvQuoteBoundaries(t *testing.T) {
 				t.Fatalf("Expected %#v, but %#v", tt.want, args)
 			}
 		})
+	}
+}
+
+func TestEnvQuoteBoundariesExcludedSeparators(t *testing.T) {
+	parser := NewParser()
+	parser.ParseEnv = true
+	parser.SetExcludeSeparators(';', '\t')
+	parser.Getenv = func(key string) string { return "a\tb;c" }
+	for _, line := range []string{"a\tb;c\"x\"", `$FOO"x"`} {
+		args, err := parser.Parse(line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"a\tb;cx"}
+		if !reflect.DeepEqual(args, want) {
+			t.Fatalf("Parse(%q): expected %#v, but %#v", line, want, args)
+		}
 	}
 }
 

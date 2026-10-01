@@ -165,9 +165,9 @@ func (p *Parser) Parse(line string) ([]string, error) {
 	substituted := false
 
 	type envPart struct {
-		value        string
-		quoted       bool
-		singleQuoted bool
+		value   string
+		quoted  bool
+		literal bool
 	}
 	var envParts []envPart
 	envStart := 0
@@ -177,9 +177,9 @@ func (p *Parser) Parse(line string) ([]string, error) {
 		if p.ParseEnv {
 			if envStart < len(buf) || singleQuoted || doubleQuoted {
 				envParts = append(envParts, envPart{
-					value:        string(buf[envStart:]),
-					quoted:       singleQuoted || doubleQuoted,
-					singleQuoted: singleQuoted,
+					value:   string(buf[envStart:]),
+					quoted:  singleQuoted || doubleQuoted,
+					literal: singleQuoted,
 				})
 			}
 			envStart = len(buf)
@@ -192,30 +192,35 @@ func (p *Parser) Parse(line string) ([]string, error) {
 			if p.ParseEnv && len(envParts) > 0 {
 				appendEnvPart()
 				var expanded strings.Builder
+				present := false
 				for _, part := range envParts {
 					value := part.value
-					if !part.singleQuoted {
+					if !part.literal {
 						value = replaceEnv(p.Getenv, value)
 					}
 					if part.quoted {
-						expanded.WriteByte('"')
-						for _, r := range value {
-							if r == '\\' || r == '"' {
-								expanded.WriteByte('\\')
-							}
-							expanded.WriteRune(r)
-						}
-						expanded.WriteByte('"')
-					} else {
 						expanded.WriteString(value)
+						present = true
+						continue
+					}
+					// Split expanded words without interpreting their contents
+					// as shell syntax a second time.
+					for _, r := range value {
+						if isSpace(r) && !p.isExcluded(r) {
+							if present {
+								args = append(args, expanded.String())
+								expanded.Reset()
+								present = false
+							}
+						} else {
+							expanded.WriteRune(r)
+							present = true
+						}
 					}
 				}
-				parser := &Parser{ParseEnv: false, ParseBacktick: false, Position: 0, Dir: p.Dir}
-				strs, err := parser.Parse(expanded.String())
-				if err != nil {
-					return err
+				if present {
+					args = append(args, expanded.String())
 				}
-				args = append(args, strs...)
 			} else if p.ParseEnv {
 				if got == argSingle {
 					parser := &Parser{ParseEnv: false, ParseBacktick: false, Position: 0, Dir: p.Dir}
@@ -268,7 +273,9 @@ loop:
 				got = argSingle
 				continue
 			}
-			if p.ParseEnv && r == '$' {
+			if p.ParseEnv && !doubleQuoted {
+				appendEnvPart()
+			} else if p.ParseEnv && r == '$' {
 				// Keep the backslash so replaceEnv treats the '$' as
 				// literal instead of expanding it.
 				buf = append(buf, '\\', '$')
@@ -282,6 +289,10 @@ loop:
 				r = '\n'
 			}
 			buf = append(buf, string(r)...)
+			if p.ParseEnv && !doubleQuoted {
+				envParts = append(envParts, envPart{value: string(r), quoted: true, literal: true})
+				envStart = len(buf)
+			}
 			got = argSingle
 			continue
 		}
