@@ -1131,3 +1131,74 @@ func TestCommentAfterEmptyQuotedWord(t *testing.T) {
 		}
 	}
 }
+
+func TestEmptyQuotedSubstitution(t *testing.T) {
+	for _, substitution := range []string{"$(exit 0)", "`exit 0`"} {
+		for _, quote := range []string{`""`, `''`} {
+			for _, word := range []string{
+				quote + substitution,
+				substitution + quote,
+				quote + substitution + substitution,
+				substitution + quote + substitution,
+				quote + substitution + quote,
+			} {
+				t.Run(word, func(t *testing.T) {
+					parser := NewParser()
+					parser.ParseBacktick = true
+					args, err := parser.Parse("echo " + word + " done")
+					if err != nil {
+						t.Fatal(err)
+					}
+					want := []string{"echo", "", "done"}
+					if !reflect.DeepEqual(args, want) {
+						t.Fatalf("Expected %#v, but %#v", want, args)
+					}
+				})
+			}
+		}
+		for _, line := range []string{
+			"echo " + substitution + " done",
+			`echo "" ` + substitution + " done",
+			"echo '' " + substitution + " done",
+		} {
+			t.Run(line, func(t *testing.T) {
+				parser := NewParser()
+				parser.ParseBacktick = true
+				args, err := parser.Parse(line)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := []string{"echo", "done"}
+				if strings.Contains(line, `""`) || strings.Contains(line, "''") {
+					want = []string{"echo", "", "done"}
+				}
+				if !reflect.DeepEqual(args, want) {
+					t.Fatalf("Expected %#v, but %#v", want, args)
+				}
+			})
+		}
+	}
+}
+
+func TestEmptyQuotedSubstitutionContent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires printf")
+	}
+	for _, substitution := range []string{`$(printf '\n')`, "`printf '\\n'`", "$(printf '';)", "`printf '';`"} {
+		for _, quote := range []string{`""`, `''`} {
+			t.Run(quote+substitution, func(t *testing.T) {
+				parser := NewParser()
+				parser.ParseBacktick = true
+				parser.SetExcludeSeparators(';')
+				args, err := parser.Parse("echo " + quote + substitution + " done")
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := []string{"echo", "", "done"}
+				if !reflect.DeepEqual(args, want) {
+					t.Fatalf("Expected %#v, but %#v", want, args)
+				}
+			})
+		}
+	}
+}
