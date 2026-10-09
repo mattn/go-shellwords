@@ -837,6 +837,51 @@ func TestHaveRedirectPrefix(t *testing.T) {
 	}
 }
 
+func TestHaveInputRedirectPrefix(t *testing.T) {
+	tests := []struct {
+		line     string
+		wantArgs []string
+		wantRest string
+	}{
+		{`cmd 0<file`, []string{"cmd"}, "0<file"},
+		{`cmd 10<file`, []string{"cmd"}, "10<file"},
+		{`cmd 10<<EOF`, []string{"cmd"}, "10<<EOF"},
+		{`cmd 10<<-EOF`, []string{"cmd"}, "10<<-EOF"},
+		{`cmd 10<&0`, []string{"cmd"}, "10<&0"},
+		{`cmd 10<>file`, []string{"cmd"}, "10<>file"},
+		{`cmd 2x<file`, []string{"cmd", "2x"}, "<file"},
+		{`cmd 10 <file`, []string{"cmd", "10"}, "<file"},
+		{`cmd "10"<file`, []string{"cmd", "10"}, "<file"},
+		{`cmd '10'<file`, []string{"cmd", "10"}, "<file"},
+		{`cmd 1\0<file`, []string{"cmd", "10"}, "<file"},
+		{`cmd 2""<file`, []string{"cmd", "2"}, "<file"},
+		{`cmd $FD<file`, []string{"cmd", "10"}, "<file"},
+		{`cmd $FD 2<file`, []string{"cmd", "10"}, "2<file"},
+		{`cmd "x" 2<file`, []string{"cmd", "x"}, "2<file"},
+		{`cmd 🍺 10<file`, []string{"cmd", "🍺"}, "10<file"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			parser := NewParser()
+			parser.ParseEnv = true
+			parser.Getenv = func(string) string { return "10" }
+			args, err := parser.Parse(tt.line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(args, tt.wantArgs) {
+				t.Errorf("Expected %#v, but %#v", tt.wantArgs, args)
+			}
+			if parser.Position < 0 {
+				t.Fatalf("Expected a redirect position, but %d", parser.Position)
+			}
+			if rest := string([]rune(tt.line)[parser.Position:]); rest != tt.wantRest {
+				t.Errorf("Expected %q, but %q", tt.wantRest, rest)
+			}
+		})
+	}
+}
+
 func TestHaveQuotedRedirectPrefix(t *testing.T) {
 	tests := []struct {
 		line         string
