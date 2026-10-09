@@ -166,7 +166,9 @@ loop:
 				buf = append(buf, string(r)...)
 				backtick = append(backtick, '\\')
 				backtick = append(backtick, string(r)...)
-				got = argSingle
+				if got == argNo {
+					got = argSingle
+				}
 				continue
 			}
 			if r == 't' {
@@ -176,7 +178,9 @@ loop:
 				r = '\n'
 			}
 			buf = append(buf, string(r)...)
-			got = argSingle
+			if got == argNo {
+				got = argSingle
+			}
 			continue
 		}
 
@@ -190,7 +194,9 @@ loop:
 		}
 
 		if p.isExcluded(r) {
-			got = argSingle
+			if got == argNo {
+				got = argSingle
+			}
 			buf = append(buf, string(r)...)
 			if backQuote || dollarQuote {
 				backtick = append(backtick, string(r)...)
@@ -269,7 +275,9 @@ loop:
 				buf = append(buf, ')')
 				backtick = backtick[:0]
 				dollarQuote = false
-				got = argSingle
+				if got == argNo {
+					got = argSingle
+				}
 				continue
 			}
 
@@ -345,7 +353,9 @@ loop:
 							continue
 						}
 						buf = append(buf, string(c)...)
-						got = argSingle
+						if got == argNo {
+							got = argSingle
+						}
 					}
 				}
 				substituted = true
@@ -359,7 +369,9 @@ loop:
 			}
 		}
 
-		got = argSingle
+		if got == argNo {
+			got = argSingle
+		}
 		buf = append(buf, string(r)...)
 		if backQuote || dollarQuote {
 			backtick = append(backtick, string(r)...)
