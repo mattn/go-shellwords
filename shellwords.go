@@ -310,7 +310,7 @@ loop:
 				// is unquoted; quoting makes it an ordinary argument. Output of
 				// a command substitution is never one either, and its length
 				// does not match the source text.
-				if r == '>' && len(buf) > 0 && !tokenQuoted && !substituted {
+				if (r == '>' || r == '<') && len(buf) > 0 && !tokenQuoted && !substituted {
 					isDigits := true
 					for _, c := range buf {
 						if c < '0' || c > '9' {
