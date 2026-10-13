@@ -246,6 +246,63 @@ func TestBacktick(t *testing.T) {
 	}
 }
 
+func TestSubstitutionWhitespace(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires sh")
+	}
+	t.Setenv("SHELL", "/bin/sh")
+
+	tests := []struct {
+		name   string
+		format string
+		want   string
+	}{
+		{"spaces", "  value  ", "  value  "},
+		{"tabs", `\tvalue\t`, "\tvalue\t"},
+		{"only spaces", "  ", "  "},
+		{"leading newline", `\nvalue\n`, "\nvalue"},
+		{"trailing newlines", `value\n\n`, "value"},
+		{"space before newline", `value \n`, "value "},
+		{"carriage return", `value\r\n`, "value\r"},
+		{"only newlines", `\n\n`, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			command := "printf '" + tt.format + "'"
+			for _, substitution := range []string{"`" + command + "`", "$(" + command + ")"} {
+				parser := NewParser()
+				parser.ParseBacktick = true
+				line := "echo before" + substitution + "after"
+				args, err := parser.Parse(line)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := []string{"echo", "before" + tt.want + "after"}
+				if !reflect.DeepEqual(args, want) {
+					t.Errorf("Parse(%q) = %#v, want %#v", line, args, want)
+				}
+			}
+		})
+	}
+}
+
+func TestShellRunDoubleQuotedSubstitution(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires sh")
+	}
+	t.Setenv("SHELL", "/bin/sh")
+	for _, substitution := range []string{"`printf '  value  '`", "$(printf '  value  ')"} {
+		for _, prefix := range []string{"before", " "} {
+			line := "echo \"" + prefix + substitution + "after \""
+			got, err := shellRun(line, "")
+			want := prefix + "  value  after "
+			if err != nil || got != want {
+				t.Errorf("shellRun(%q) = %q, %v; want %q", line, got, err, want)
+			}
+		}
+	}
+}
+
 func TestBacktickQuoted(t *testing.T) {
 	parser := NewParser()
 

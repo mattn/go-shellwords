@@ -26,5 +26,5 @@ func shellRun(line, dir string) (string, error) {
 		}
 		return "", fmt.Errorf("%s: %w", string(b), err)
 	}
-	return strings.TrimSpace(string(b)), nil
+	return strings.TrimRight(string(b), "\n"), nil
 }
