@@ -1087,6 +1087,49 @@ func TestParseWithEnvs(t *testing.T) {
 			wantEnvs: []string{},
 			wantArgs: []string{"=x", "1a=b", "cmd"},
 		},
+		// Quoting or escaping the name or the '=' makes the word an
+		// ordinary argument, like in sh: "A=1" runs a command named A=1.
+		{
+			line:     `"FOO=foo" cmd`,
+			wantEnvs: []string{},
+			wantArgs: []string{"FOO=foo", "cmd"},
+		},
+		{
+			line:     `'FOO=foo' cmd`,
+			wantEnvs: []string{},
+			wantArgs: []string{"FOO=foo", "cmd"},
+		},
+		{
+			line:     `FOO\=foo cmd`,
+			wantEnvs: []string{},
+			wantArgs: []string{"FOO=foo", "cmd"},
+		},
+		{
+			line:     `F"OO"=foo cmd`,
+			wantEnvs: []string{},
+			wantArgs: []string{"FOO=foo", "cmd"},
+		},
+		{
+			line:     `FOO"="foo cmd`,
+			wantEnvs: []string{},
+			wantArgs: []string{"FOO=foo", "cmd"},
+		},
+		{
+			line:     `FOO=foo "BAR=bar" cmd`,
+			wantEnvs: []string{"FOO=foo"},
+			wantArgs: []string{"BAR=bar", "cmd"},
+		},
+		// Quoting the value is fine.
+		{
+			line:     `FOO="foo bar" BAR='a b' BAZ=\$x cmd`,
+			wantEnvs: []string{"FOO=foo bar", "BAR=a b", "BAZ=$x"},
+			wantArgs: []string{"cmd"},
+		},
+		{
+			line:     `FOO= BAR="" cmd`,
+			wantEnvs: []string{"FOO=", "BAR="},
+			wantArgs: []string{"cmd"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.line, func(t *testing.T) {
@@ -1099,6 +1142,71 @@ func TestParseWithEnvs(t *testing.T) {
 			}
 			if !reflect.DeepEqual(args, tt.wantArgs) {
 				t.Errorf("Expected %#v, but %#v", tt.wantArgs, args)
+			}
+		})
+	}
+}
+
+func TestParseWithEnvsExpansion(t *testing.T) {
+	env := map[string]string{"ASSIGN": "FOO=foo", "TWO": "FOO=foo BAR=bar", "EMPTY": "", "ONE": "x", "VAL": "x y"}
+	tests := []struct {
+		line               string
+		wantEnvs, wantArgs []string
+	}{
+		// The result of an expansion is never an assignment.
+		{"$ASSIGN cmd", []string{}, []string{"FOO=foo", "cmd"}},
+		{`"$ASSIGN" cmd`, []string{}, []string{"FOO=foo", "cmd"}},
+		{"$TWO cmd", []string{}, []string{"FOO=foo", "BAR=bar", "cmd"}},
+		{"${EMPTY}FOO=foo cmd", []string{}, []string{"FOO=foo", "cmd"}},
+		{"FOO$EMPTY=foo cmd", []string{}, []string{"FOO=foo", "cmd"}},
+		// An expansion in the value is fine.
+		{"FOO=$ONE BAR=a$EMPTY cmd", []string{"FOO=x", "BAR=a"}, []string{"cmd"}},
+		{`FOO="$VAL" cmd`, []string{"FOO=x y"}, []string{"cmd"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			p := NewParser()
+			p.ParseEnv = true
+			p.Getenv = func(k string) string { return env[k] }
+			envs, args, err := p.ParseWithEnvs(tt.line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(envs, tt.wantEnvs) {
+				t.Errorf("Expected envs %#v, but %#v", tt.wantEnvs, envs)
+			}
+			if !reflect.DeepEqual(args, tt.wantArgs) {
+				t.Errorf("Expected args %#v, but %#v", tt.wantArgs, args)
+			}
+		})
+	}
+}
+
+func TestParseWithEnvsSubstitution(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sh syntax")
+	}
+	tests := []struct {
+		line               string
+		wantEnvs, wantArgs []string
+	}{
+		{"$(echo FOO=foo) cmd", []string{}, []string{"FOO=foo", "cmd"}},
+		{"`echo FOO=foo` cmd", []string{}, []string{"FOO=foo", "cmd"}},
+		{"FOO=$(echo foo) BAR=`echo bar` cmd", []string{"FOO=foo", "BAR=bar"}, []string{"cmd"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			p := NewParser()
+			p.ParseBacktick = true
+			envs, args, err := p.ParseWithEnvs(tt.line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(envs, tt.wantEnvs) {
+				t.Errorf("Expected envs %#v, but %#v", tt.wantEnvs, envs)
+			}
+			if !reflect.DeepEqual(args, tt.wantArgs) {
+				t.Errorf("Expected args %#v, but %#v", tt.wantArgs, args)
 			}
 		})
 	}
