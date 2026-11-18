@@ -1148,7 +1148,7 @@ func TestParseWithEnvs(t *testing.T) {
 }
 
 func TestParseWithEnvsExpansion(t *testing.T) {
-	env := map[string]string{"ASSIGN": "FOO=foo", "TWO": "FOO=foo BAR=bar", "EMPTY": "", "ONE": "x", "VAL": "x y"}
+	env := map[string]string{"ASSIGN": "FOO=foo", "TWO": "FOO=foo BAR=bar", "EMPTY": "", "ONE": "x", "VAL": "x y", "SP": " ", "SPLIT": "a BAR=bar"}
 	tests := []struct {
 		line               string
 		wantEnvs, wantArgs []string
@@ -1162,6 +1162,16 @@ func TestParseWithEnvsExpansion(t *testing.T) {
 		// An expansion in the value is fine.
 		{"FOO=$ONE BAR=a$EMPTY cmd", []string{"FOO=x", "BAR=a"}, []string{"cmd"}},
 		{`FOO="$VAL" cmd`, []string{"FOO=x y"}, []string{"cmd"}},
+		// Fields split off an expansion are never assignments either.
+		{"${SP}FOO=foo cmd", []string{}, []string{"FOO=foo", "cmd"}},
+		{"${SP}FOO=foo BAR=bar cmd", []string{}, []string{"FOO=foo", "BAR=bar", "cmd"}},
+		// The value of an assignment is not split, as in a shell.
+		{"FOO=$SPLIT cmd", []string{"FOO=a BAR=bar"}, []string{"cmd"}},
+		{"FOO=x$VAL BAR=$SPLIT cmd", []string{"FOO=xx y", "BAR=a BAR=bar"}, []string{"cmd"}},
+		// ... but once the command starts, words are split again.
+		{"cmd FOO=$SPLIT", []string{}, []string{"cmd", "FOO=a", "BAR=bar"}},
+		{`"FOO=x" BAR=$SPLIT`, []string{}, []string{"FOO=x", "BAR=a", "BAR=bar"}},
+		{"FOO\\=$SPLIT", []string{}, []string{"FOO=a", "BAR=bar"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.line, func(t *testing.T) {

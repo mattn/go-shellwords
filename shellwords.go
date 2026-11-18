@@ -131,6 +131,9 @@ func (p *Parser) parse(line string, withQuotedAt bool) ([]string, []int, error) 
 			quotedAt = len(buf)
 		}
 	}
+	// Whether every word so far was an assignment, so the pending token is
+	// still in assignment position. Only tracked when withQuotedAt is true.
+	assignPos := withQuotedAt
 	// Whether the previous character was an unquoted, unescaped '$'.
 	afterDollar := false
 	// Byte offset in line up to which characters were already consumed.
@@ -146,6 +149,9 @@ func (p *Parser) parse(line string, withQuotedAt bool) ([]string, []int, error) 
 			args = append(args, string(buf))
 			if withQuotedAt {
 				quotedAts = append(quotedAts, quotedAt)
+				if assignPos && !isAssignment(string(buf), quotedAt) {
+					assignPos = false
+				}
 			}
 		}
 		buf = buf[:0]
@@ -371,10 +377,13 @@ loop:
 				}
 				skip = idx + 1 + n
 				value := getenv(name)
+				// A shell does not split the value of an assignment, so
+				// FOO=$X stays one word even if X contains spaces.
+				inAssignment := assignPos && isAssignment(string(buf), quotedAt)
 				// Even an empty expansion keeps the word from being an
 				// assignment, as in a shell.
 				markQuoted()
-				if doubleQuoted {
+				if doubleQuoted || inAssignment {
 					buf = append(buf, value...)
 				} else {
 					// Split the value into fields, but never interpret its
@@ -382,6 +391,10 @@ loop:
 					for _, c := range value {
 						if isSpace(c) && !p.isExcluded(c) {
 							flush()
+							// The rest of the token still comes from a word
+							// with an expansion before it, so it can never
+							// be an assignment: ${X}A=1 with X=" ".
+							quotedAt = 0
 							continue
 						}
 						markQuoted()
@@ -432,9 +445,7 @@ func (p *Parser) ParseWithEnvs(line string) (envs []string, args []string, err e
 	args = []string{}
 	parsingEnv := true
 	for i, arg := range _args {
-		// Only a word whose name and '=' are plain text is an assignment;
-		// "A=1", A\=1 or the result of an expansion is an ordinary word.
-		if parsingEnv && isEnv(arg) && (quotedAts[i] < 0 || quotedAts[i] > strings.IndexByte(arg, '=')) {
+		if parsingEnv && isAssignment(arg, quotedAts[i]) {
 			envs = append(envs, arg)
 		} else {
 			if parsingEnv {
@@ -444,6 +455,14 @@ func (p *Parser) ParseWithEnvs(line string) (envs []string, args []string, err e
 		}
 	}
 	return envs, args, nil
+}
+
+// isAssignment reports whether word, whose first quoted, escaped or expanded
+// byte is at quotedAt (-1 if none), is a NAME=value assignment. Only a word
+// whose name and '=' are plain text is one; "A=1", A\=1 or the result of an
+// expansion is an ordinary word.
+func isAssignment(word string, quotedAt int) bool {
+	return isEnv(word) && (quotedAt < 0 || quotedAt > strings.IndexByte(word, '='))
 }
 
 func isEnv(arg string) bool {
