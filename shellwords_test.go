@@ -1192,6 +1192,47 @@ func TestParseWithEnvsExpansion(t *testing.T) {
 	}
 }
 
+func TestParseWithEnvsEmptyExpansion(t *testing.T) {
+	env := map[string]string{"EMPTY": "", "SPACE": " \t\n", "VALUE": "a b"}
+	tests := []struct {
+		line               string
+		wantEnvs, wantArgs []string
+	}{
+		// A command word ends assignment position even if it expands away.
+		{"$EMPTY FOO=foo cmd", []string{}, []string{"FOO=foo", "cmd"}},
+		{"${EMPTY} FOO=foo cmd", []string{}, []string{"FOO=foo", "cmd"}},
+		{"$SPACE FOO=foo cmd", []string{}, []string{"FOO=foo", "cmd"}},
+		{"FIRST=first $EMPTY FOO=foo cmd", []string{"FIRST=first"}, []string{"FOO=foo", "cmd"}},
+		{"$EMPTY $SPACE FOO=foo cmd", []string{}, []string{"FOO=foo", "cmd"}},
+		{"$EMPTY FOO=$VALUE cmd", []string{}, []string{"FOO=a", "b", "cmd"}},
+		// Empty expansions in assignment values do not end assignment position.
+		{"FOO=$EMPTY BAR=bar cmd", []string{"FOO=", "BAR=bar"}, []string{"cmd"}},
+		{"FOO=$SPACE BAR=bar cmd", []string{"FOO= \t\n", "BAR=bar"}, []string{"cmd"}},
+		{"FOO=foo   BAR=bar cmd", []string{"FOO=foo", "BAR=bar"}, []string{"cmd"}},
+		// Quoted empty arguments stay in the command, while unquoted ones disappear.
+		{`"$EMPTY" FOO=foo cmd`, []string{}, []string{"", "FOO=foo", "cmd"}},
+		{"$EMPTY", []string{}, []string{}},
+		{"FOO=foo $EMPTY", []string{"FOO=foo"}, []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			p := NewParser()
+			p.ParseEnv = true
+			p.Getenv = func(k string) string { return env[k] }
+			envs, args, err := p.ParseWithEnvs(tt.line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(envs, tt.wantEnvs) {
+				t.Errorf("Expected envs %#v, but %#v", tt.wantEnvs, envs)
+			}
+			if !reflect.DeepEqual(args, tt.wantArgs) {
+				t.Errorf("Expected args %#v, but %#v", tt.wantArgs, args)
+			}
+		})
+	}
+}
+
 func TestParseWithEnvsSubstitution(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses sh syntax")

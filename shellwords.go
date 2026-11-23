@@ -109,6 +109,7 @@ func (p *Parser) Parse(line string) ([]string, error) {
 // parse splits line into words. If withQuotedAt is true, it also reports
 // for each word the byte offset of its first character that came from
 // quoting, escaping or an expansion, or -1 if the whole word is plain text.
+// Words after assignment position ends are marked with 0 as well.
 func (p *Parser) parse(line string, withQuotedAt bool) ([]string, []int, error) {
 	args := make([]string, 0, 1+len(line)/8)
 	var quotedAts []int
@@ -145,13 +146,14 @@ func (p *Parser) parse(line string, withQuotedAt bool) ([]string, []int, error) 
 	}
 
 	flush := func() {
+		// A command word ends assignment position even if expansion removes it.
+		if assignPos && (got != argNo || substituted) && !isAssignment(string(buf), quotedAt) {
+			assignPos = false
+		}
 		if got == argQuoted || (got != argNo && len(buf) > 0) {
 			args = append(args, string(buf))
 			if withQuotedAt {
 				quotedAts = append(quotedAts, quotedAt)
-				if assignPos && !isAssignment(string(buf), quotedAt) {
-					assignPos = false
-				}
 			}
 		}
 		buf = buf[:0]
@@ -159,6 +161,9 @@ func (p *Parser) parse(line string, withQuotedAt bool) ([]string, []int, error) 
 		tokenQuoted = false
 		substituted = false
 		quotedAt = -1
+		if withQuotedAt && !assignPos {
+			quotedAt = 0
+		}
 	}
 
 	i := -1
