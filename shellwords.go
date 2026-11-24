@@ -59,6 +59,10 @@ type Parser struct {
 	// If ParseEnv is true, use this for getenv.
 	// If nil, use os.Getenv.
 	Getenv func(string) string
+
+	// ParseOperators returns all words and operator tokens instead of stopping
+	// at the first operator. It does not enable ParseEnv or ParseBacktick.
+	ParseOperators bool
 }
 
 func NewParser() *Parser {
@@ -99,6 +103,24 @@ func (p *Parser) SetExcludeSeparators(r ...rune) {
 // ExcludedSeparators returns excluded separators
 func (p *Parser) ExcludedSeparators() []rune {
 	return p.excludedSep
+}
+
+// operatorLen returns the longest supported operator prefix of line. The first
+// character is already known to be an unexcluded operator. Exclusions also
+// take precedence over multi-character operators.
+func (p *Parser) operatorLen(line string) int {
+	if len(line) > 1 && !p.isExcluded(rune(line[1])) {
+		switch line[:2] {
+		case "<<":
+			if len(line) > 2 && line[2] == '-' && !p.isExcluded('-') {
+				return 3
+			}
+			return 2
+		case "&&", "||", ";;", ";&", ">>", "<&", ">&", "<>", ">|":
+			return 2
+		}
+	}
+	return 1
 }
 
 func (p *Parser) Parse(line string) ([]string, error) {
@@ -349,6 +371,18 @@ loop:
 
 		case ';', '&', '|', '<', '>':
 			if !(escaped || singleQuoted || doubleQuoted || backQuote || dollarQuote) {
+				if p.ParseOperators {
+					flush()
+					n := p.operatorLen(line[idx:])
+					args = append(args, line[idx:idx+n])
+					if withQuotedAt {
+						quotedAts = append(quotedAts, 0)
+						// Operators end the single leading assignment prefix.
+						assignPos = false
+					}
+					skip = idx + n
+					continue
+				}
 				// A file descriptor number is only a redirect prefix while it
 				// is unquoted; quoting makes it an ordinary argument. Output of
 				// a command substitution is never one either, and its length
