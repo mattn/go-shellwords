@@ -1365,3 +1365,233 @@ func TestEmptyQuotedSubstitutionContent(t *testing.T) {
 		}
 	}
 }
+
+func TestParseOperatorsDefault(t *testing.T) {
+	tests := []struct {
+		line     string
+		want     []string
+		position int
+	}{
+		{"pg_dump db -U usr -F c > bck.dump", []string{"pg_dump", "db", "-U", "usr", "-F", "c"}, 23},
+		{"cmd 🍺 10>out", []string{"cmd", "🍺"}, 6},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			for _, p := range []*Parser{NewParser(), {}} {
+				if p.ParseOperators {
+					t.Fatal("operator parsing must be opt-in")
+				}
+				got, err := p.Parse(tt.line)
+				if err != nil || !reflect.DeepEqual(got, tt.want) || p.Position != tt.position {
+					t.Fatalf("Parse(%q) = %#v, %v, Position=%d; want %#v, nil, %d", tt.line, got, err, p.Position, tt.want, tt.position)
+				}
+			}
+			got, err := Parse(tt.line)
+			if err != nil || !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("package Parse = %#v, %v; want %#v, nil", got, err, tt.want)
+			}
+		})
+	}
+	envs, args, err := ParseWithEnvs("A=1 cmd|B=2 next")
+	if err != nil || !reflect.DeepEqual(envs, []string{"A=1"}) || !reflect.DeepEqual(args, []string{"cmd"}) {
+		t.Fatalf("default ParseWithEnvs = %#v, %#v, %v", envs, args, err)
+	}
+}
+
+func TestParseOperatorsTokens(t *testing.T) {
+	tests := []struct {
+		line string
+		want []string
+	}{
+		{"", []string{}},
+		{"pg_dump db -U usr -F c > bck.dump", []string{"pg_dump", "db", "-U", "usr", "-F", "c", ">", "bck.dump"}},
+		{"cmd>>out||next 2>&1", []string{"cmd", ">>", "out", "||", "next", "2", ">&", "1"}},
+		{"cmd<<-EOF", []string{"cmd", "<<-", "EOF"}},
+		{"cmd&&next", []string{"cmd", "&&", "next"}},
+		{"cmd||next", []string{"cmd", "||", "next"}},
+		{"cmd;;next", []string{"cmd", ";;", "next"}},
+		{"cmd;&next", []string{"cmd", ";&", "next"}},
+		{"cmd<<EOF", []string{"cmd", "<<", "EOF"}},
+		{"cmd>>out", []string{"cmd", ">>", "out"}},
+		{"cmd<&0", []string{"cmd", "<&", "0"}},
+		{"cmd>&1", []string{"cmd", ">&", "1"}},
+		{"cmd<>file", []string{"cmd", "<>", "file"}},
+		{"cmd>|out", []string{"cmd", ">|", "out"}},
+		{"cmd;next", []string{"cmd", ";", "next"}},
+		{"cmd&next", []string{"cmd", "&", "next"}},
+		{"cmd|next", []string{"cmd", "|", "next"}},
+		{"cmd<in", []string{"cmd", "<", "in"}},
+		{"cmd>out", []string{"cmd", ">", "out"}},
+		{"cmd<<<in &>out ;;&next", []string{"cmd", "<<", "<", "in", "&", ">", "out", ";;", "&", "next"}},
+		{"cmd 10<<-EOF 2>&1 0<in", []string{"cmd", "10", "<<-", "EOF", "2", ">&", "1", "0", "<", "in"}},
+		{"cmd 🍺 10>out|東京", []string{"cmd", "🍺", "10", ">", "out", "|", "東京"}},
+		{"|cmd>out;", []string{"|", "cmd", ">", "out", ";"}},
+		{"cmd \t>\rout\n| next", []string{"cmd", ">", "out", "|", "next"}},
+		{"< < - > > | | & & ; ; &", []string{"<", "<", "-", ">", ">", "|", "|", "&", "&", ";", ";", "&"}},
+		{`cmd "x>y" 'a|b' \; \& \< \> \|`, []string{"cmd", "x>y", "a|b", ";", "&", "<", ">", "|"}},
+		{`""|''>out`, []string{"", "|", "", ">", "out"}},
+		{`cmd 2"">out`, []string{"cmd", "2", ">", "out"}},
+		{`cmd>\>out`, []string{"cmd", ">", ">out"}},
+		{`cmd<"<"`, []string{"cmd", "<", "<"}},
+		{`cmd<\<`, []string{"cmd", "<", "<"}},
+		{`cmd $VALUE>out`, []string{"cmd", "$VALUE", ">", "out"}},
+		{"cmd `raw>text|next`>out", []string{"cmd", "`raw>text|next`", ">", "out"}},
+		{`cmd $(raw>text|next)>out`, []string{"cmd", "$(raw>text|next)", ">", "out"}},
+		{`cmd "(x>y)"|next`, []string{"cmd", "(x>y)", "|", "next"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			p := NewParser()
+			p.ParseOperators = true
+			p.Getenv = func(string) string { t.Fatal("ParseOperators must not enable environment expansion"); return "" }
+			got, err := p.Parse(tt.line)
+			if err != nil || !reflect.DeepEqual(got, tt.want) || p.Position != -1 {
+				t.Fatalf("Parse(%q) = %#v, %v, Position=%d; want %#v, nil, -1", tt.line, got, err, p.Position, tt.want)
+			}
+			if p.ParseEnv || p.ParseBacktick {
+				t.Fatal("ParseOperators changed expansion options")
+			}
+		})
+	}
+}
+
+func TestParseOperatorsExcluded(t *testing.T) {
+	tests := []struct {
+		line    string
+		exclude []rune
+		want    []string
+	}{
+		{"cmd>out|next", []rune{'>'}, []string{"cmd>out", "|", "next"}},
+		{"cmd>&out|next", []rune{'&'}, []string{"cmd", ">", "&out", "|", "next"}},
+		{"cmd>|out", []rune{'|'}, []string{"cmd", ">", "|out"}},
+		{"cmd<<-EOF", []rune{'-'}, []string{"cmd", "<<", "-EOF"}},
+		{"cmd<>out", []rune{'>'}, []string{"cmd", "<", ">out"}},
+		{"cmd;;&next", []rune{'&'}, []string{"cmd", ";;", "&next"}},
+		{"cmd;&next", []rune{'&'}, []string{"cmd", ";", "&next"}},
+		{"cmd>&1|next", []rune{'>'}, []string{"cmd>", "&", "1", "|", "next"}},
+		{"cmd<in>out", []rune{'<'}, []string{"cmd<in", ">", "out"}},
+		{"cmd>out|next", []rune{';', '&', '|', '<', '>'}, []string{"cmd>out|next"}},
+		{"cmd\targ>out", []rune{'\t'}, []string{"cmd\targ", ">", "out"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line+string(tt.exclude), func(t *testing.T) {
+			p := NewParser()
+			p.ParseOperators = true
+			p.SetExcludeSeparators(tt.exclude...)
+			got, err := p.Parse(tt.line)
+			if err != nil || !reflect.DeepEqual(got, tt.want) || p.Position != -1 {
+				t.Fatalf("Parse = %#v, %v, Position=%d; want %#v, nil, -1", got, err, p.Position, tt.want)
+			}
+			if !reflect.DeepEqual(p.ExcludedSeparators(), tt.exclude) {
+				t.Fatal("exclusions changed")
+			}
+		})
+	}
+}
+
+func TestParseOperatorsWithEnvs(t *testing.T) {
+	tests := []struct {
+		line               string
+		wantEnvs, wantArgs []string
+	}{
+		{">out A=1 cmd", []string{}, []string{">", "out", "A=1", "cmd"}},
+		{"A=1 cmd|B=2 next", []string{"A=1"}, []string{"cmd", "|", "B=2", "next"}},
+		{`A=1 cmd "x>y" \| z>out`, []string{"A=1"}, []string{"cmd", "x>y", "|", "z", ">", "out"}},
+		{"A=1|B=2 next", []string{"A=1"}, []string{"|", "B=2", "next"}},
+		{"A=1 B=2", []string{"A=1", "B=2"}, []string{}},
+		{"A=1;B=2&&C=3", []string{"A=1"}, []string{";", "B=2", "&&", "C=3"}},
+		{`"A=1"|B=2`, []string{}, []string{"A=1", "|", "B=2"}},
+		{`A\=1|B=2`, []string{}, []string{"A=1", "|", "B=2"}},
+		{"", []string{}, []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			p := NewParser()
+			p.ParseOperators = true
+			envs, args, err := p.ParseWithEnvs(tt.line)
+			if err != nil || !reflect.DeepEqual(envs, tt.wantEnvs) || !reflect.DeepEqual(args, tt.wantArgs) || p.Position != -1 {
+				t.Fatalf("ParseWithEnvs = %#v, %#v, %v, Position=%d; want %#v, %#v, nil, -1", envs, args, err, p.Position, tt.wantEnvs, tt.wantArgs)
+			}
+		})
+	}
+}
+
+func TestParseOperatorsExpansion(t *testing.T) {
+	env := map[string]string{"VALUE": "a b", "OPS": "x>y|z&&w;v<q", "FD": "10", "ASSIGN": "B=2", "LITERAL": "$(text)|`text`"}
+	tests := []struct {
+		line               string
+		wantEnvs, wantArgs []string
+	}{
+		{"A=1 cmd|B=$VALUE next", []string{"A=1"}, []string{"cmd", "|", "B=a", "b", "next"}},
+		{">out B=$VALUE next", []string{}, []string{">", "out", "B=a", "b", "next"}},
+		{"A=1|B=$VALUE next", []string{"A=1"}, []string{"|", "B=a", "b", "next"}},
+		{"A=$VALUE>out B=$VALUE", []string{"A=a b"}, []string{">", "out", "B=a", "b"}},
+		{"cmd $OPS>out", []string{}, []string{"cmd", "x>y|z&&w;v<q", ">", "out"}},
+		{"cmd $FD>&1", []string{}, []string{"cmd", "10", ">&", "1"}},
+		{"$ASSIGN|next", []string{}, []string{"B=2", "|", "next"}},
+		{"cmd $LITERAL>out", []string{}, []string{"cmd", "$(text)|`text`", ">", "out"}},
+		{`A=1 cmd|B="$VALUE" next`, []string{"A=1"}, []string{"cmd", "|", "B=a b", "next"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			p := NewParser()
+			p.ParseOperators = true
+			p.ParseEnv = true
+			p.Getenv = func(k string) string { return env[k] }
+			envs, args, err := p.ParseWithEnvs(tt.line)
+			if err != nil || !reflect.DeepEqual(envs, tt.wantEnvs) || !reflect.DeepEqual(args, tt.wantArgs) || p.Position != -1 {
+				t.Fatalf("ParseWithEnvs = %#v, %#v, %v, Position=%d; want %#v, %#v, nil, -1", envs, args, err, p.Position, tt.wantEnvs, tt.wantArgs)
+			}
+			// Parse uses the same tokenizer, without assignment-position semantics.
+			if tt.line == "cmd $OPS>out" {
+				got, err := p.Parse(tt.line)
+				if err != nil || !reflect.DeepEqual(got, []string{"cmd", "x>y|z&&w;v<q", ">", "out"}) || p.Position != -1 {
+					t.Fatalf("Parse expansion = %#v, %v, Position=%d", got, err, p.Position)
+				}
+			}
+		})
+	}
+}
+
+func TestParseOperatorsComments(t *testing.T) {
+	p := NewParser()
+	p.ParseOperators = true
+	p.ParseComment = true
+	got, err := p.Parse("cmd># ignored > |\nnext|\"#literal\" x#word")
+	want := []string{"cmd", ">", "next", "|", "#literal", "x#word"}
+	if err != nil || !reflect.DeepEqual(got, want) || p.Position != -1 {
+		t.Fatalf("Parse = %#v, %v, Position=%d; want %#v, nil, -1", got, err, p.Position, want)
+	}
+}
+
+func TestParseOperatorsErrors(t *testing.T) {
+	for _, line := range []string{"cmd|\"unterminated", "cmd>'unterminated", "cmd|`unterminated", "cmd>$(unterminated", "cmd>(raw)", "cmd>)", "cmd>out\\"} {
+		t.Run(line, func(t *testing.T) {
+			p := NewParser()
+			p.ParseOperators = true
+			args, err := p.Parse(line)
+			if err == nil || err.Error() != "invalid command line string" || args != nil {
+				t.Fatalf("Parse = %#v, %v; want nil, invalid command line string", args, err)
+			}
+			envs, args, err := p.ParseWithEnvs(line)
+			if err == nil || err.Error() != "invalid command line string" || envs != nil || args != nil {
+				t.Fatalf("ParseWithEnvs = %#v, %#v, %v; want nil, nil, invalid command line string", envs, args, err)
+			}
+		})
+	}
+}
+
+func TestParseOperatorsReuse(t *testing.T) {
+	p := NewParser()
+	for _, enabled := range []bool{false, true, false} {
+		p.ParseOperators = enabled
+		got, err := p.Parse("cmd>out")
+		want, position := []string{"cmd"}, 3
+		if enabled {
+			want, position = []string{"cmd", ">", "out"}, -1
+		}
+		if err != nil || !reflect.DeepEqual(got, want) || p.Position != position {
+			t.Fatalf("enabled=%v: %#v, %v, Position=%d; want %#v, nil, %d", enabled, got, err, p.Position, want, position)
+		}
+	}
+}
