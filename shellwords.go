@@ -138,6 +138,9 @@ func (p *Parser) parse(line string, withQuotedAt bool) ([]string, []int, error) 
 	afterDollar := false
 	// Byte offset in line up to which characters were already consumed.
 	skip := 0
+	// Number of line continuation characters dropped inside the pending
+	// token, so a redirect prefix can still point at its source offset.
+	continued := 0
 
 	getenv := p.Getenv
 	if getenv == nil {
@@ -159,6 +162,7 @@ func (p *Parser) parse(line string, withQuotedAt bool) ([]string, []int, error) 
 		tokenQuoted = false
 		substituted = false
 		quotedAt = -1
+		continued = 0
 	}
 
 	i := -1
@@ -187,6 +191,14 @@ loop:
 
 		if escaped {
 			escaped = false
+			// A backslash-newline is a line continuation: both characters
+			// are removed, as if they were never there.
+			if r == '\n' && !backQuote && !dollarQuote {
+				if len(buf) > 0 {
+					continued += 2
+				}
+				continue
+			}
 			tokenQuoted = true
 			markQuoted()
 			if backQuote || dollarQuote {
@@ -362,7 +374,7 @@ loop:
 						}
 					}
 					if isDigits {
-						i -= len(buf)
+						i -= len(buf) + continued
 						got = argNo
 					}
 				}

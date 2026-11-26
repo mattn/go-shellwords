@@ -42,6 +42,11 @@ var testcases = []testcase{
 	{`foo "" bar ''`, []string{`foo`, ``, `bar`, ``}},
 	{`foo \\`, []string{`foo`, `\`}},
 	{`foo \& bar`, []string{`foo`, `&`, `bar`}},
+	{"foo \\\nbar", []string{`foo`, `bar`}},
+	{"foo\\\nbar", []string{`foobar`}},
+	{"foo \\\n", []string{`foo`}},
+	{"\"foo\\\nbar\"", []string{`foobar`}},
+	{"'foo\\\nbar'", []string{"foo\\\nbar"}},
 	{`sh -c "printf 'Hello\tworld\n'"`, []string{`sh`, `-c`, "printf 'Hello\tworld\n'"}},
 }
 
@@ -1130,6 +1135,18 @@ func TestParseWithEnvs(t *testing.T) {
 			wantEnvs: []string{"FOO=", "BAR="},
 			wantArgs: []string{"cmd"},
 		},
+		// A backslash-newline is removed before words are split, so it
+		// does not quote anything.
+		{
+			line:     "FOO=foo \\\nBAR=bar \\\ncmd",
+			wantEnvs: []string{"FOO=foo", "BAR=bar"},
+			wantArgs: []string{"cmd"},
+		},
+		{
+			line:     "FO\\\nO=foo cmd",
+			wantEnvs: []string{"FOO=foo"},
+			wantArgs: []string{"cmd"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.line, func(t *testing.T) {
@@ -1362,6 +1379,29 @@ func TestEmptyQuotedSubstitutionContent(t *testing.T) {
 					t.Fatalf("Expected %#v, but %#v", want, args)
 				}
 			})
+		}
+	}
+}
+
+func TestRedirectPrefixWithLineContinuation(t *testing.T) {
+	parser := NewParser()
+	for _, tt := range []struct {
+		line string
+		rest string
+	}{
+		{"cmd 2\\\n> file", "2\\\n> file"},
+		{"cmd 1\\\n0> file", "1\\\n0> file"},
+		{"cmd \\\n2> file", "2> file"},
+	} {
+		args, err := parser.Parse(tt.line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if expected := []string{"cmd"}; !reflect.DeepEqual(args, expected) {
+			t.Fatalf("Parse(%q): expected %#v, but %#v", tt.line, expected, args)
+		}
+		if rest := tt.line[parser.Position:]; rest != tt.rest {
+			t.Fatalf("Parse(%q): expected rest %q, but %q", tt.line, tt.rest, rest)
 		}
 	}
 }
