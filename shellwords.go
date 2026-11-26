@@ -187,6 +187,11 @@ loop:
 
 		if escaped {
 			escaped = false
+			// A backslash-newline is a line continuation: both characters
+			// are removed, as if they were never there.
+			if r == '\n' && !backQuote && !dollarQuote {
+				continue
+			}
 			tokenQuoted = true
 			markQuoted()
 			if backQuote || dollarQuote {

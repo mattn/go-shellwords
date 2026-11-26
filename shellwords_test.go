@@ -42,6 +42,11 @@ var testcases = []testcase{
 	{`foo "" bar ''`, []string{`foo`, ``, `bar`, ``}},
 	{`foo \\`, []string{`foo`, `\`}},
 	{`foo \& bar`, []string{`foo`, `&`, `bar`}},
+	{"foo \\\nbar", []string{`foo`, `bar`}},
+	{"foo\\\nbar", []string{`foobar`}},
+	{"foo \\\n", []string{`foo`}},
+	{"\"foo\\\nbar\"", []string{`foobar`}},
+	{"'foo\\\nbar'", []string{"foo\\\nbar"}},
 	{`sh -c "printf 'Hello\tworld\n'"`, []string{`sh`, `-c`, "printf 'Hello\tworld\n'"}},
 }
 
@@ -1128,6 +1133,18 @@ func TestParseWithEnvs(t *testing.T) {
 		{
 			line:     `FOO= BAR="" cmd`,
 			wantEnvs: []string{"FOO=", "BAR="},
+			wantArgs: []string{"cmd"},
+		},
+		// A backslash-newline is removed before words are split, so it
+		// does not quote anything.
+		{
+			line:     "FOO=foo \\\nBAR=bar \\\ncmd",
+			wantEnvs: []string{"FOO=foo", "BAR=bar"},
+			wantArgs: []string{"cmd"},
+		},
+		{
+			line:     "FO\\\nO=foo cmd",
+			wantEnvs: []string{"FOO=foo"},
 			wantArgs: []string{"cmd"},
 		},
 	}
