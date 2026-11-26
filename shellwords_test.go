@@ -1382,3 +1382,26 @@ func TestEmptyQuotedSubstitutionContent(t *testing.T) {
 		}
 	}
 }
+
+func TestRedirectPrefixWithLineContinuation(t *testing.T) {
+	parser := NewParser()
+	for _, tt := range []struct {
+		line string
+		rest string
+	}{
+		{"cmd 2\\\n> file", "2\\\n> file"},
+		{"cmd 1\\\n0> file", "1\\\n0> file"},
+		{"cmd \\\n2> file", "2> file"},
+	} {
+		args, err := parser.Parse(tt.line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if expected := []string{"cmd"}; !reflect.DeepEqual(args, expected) {
+			t.Fatalf("Parse(%q): expected %#v, but %#v", tt.line, expected, args)
+		}
+		if rest := tt.line[parser.Position:]; rest != tt.rest {
+			t.Fatalf("Parse(%q): expected rest %q, but %q", tt.line, tt.rest, rest)
+		}
+	}
+}
